@@ -49,8 +49,17 @@ function sameString(a: string, b: string): boolean {
  * (a no-op, a cut on an empty link) leaves these numbers alone, so it cannot
  * put the same game on the board twice.
  */
-export function outcomeHashOf(seed: string, ownerHash: string, s: RunSummary): Promise<string> {
-  return sha256([seed, ownerHash, s.score, s.durationTicks, s.shipped, s.intercepts, s.infected, s.wave, s.endedBy].join('|'));
+/** Below this many actions, two players can honestly end up with the same outcome (an idle run, say). */
+const TRIVIAL_ACTIONS = 3;
+
+/**
+ * The key a run is ranked under. A real run (a few actions or more) is keyed
+ * on its outcome alone, so a copied replay is refused whoever submits it;
+ * a near-trivial run is keyed per owner, so identical idle runs can both rank.
+ */
+export function outcomeHashOf(seed: string, ownerHash: string, s: RunSummary, actionCount: number): Promise<string> {
+  const who = actionCount >= TRIVIAL_ACTIONS ? 'anyone' : ownerHash;
+  return sha256([seed, who, s.score, s.durationTicks, s.shipped, s.intercepts, s.infected, s.wave, s.endedBy].join('|'));
 }
 
 const OWNER = /^[\w-]{16,128}$/;
@@ -130,7 +139,7 @@ export async function submitRun(d: Deps, ip: string, raw: string): Promise<ApiRe
   const verdict = verifyReplay(canonical, { score: sub.score });
   if (!verdict.ok) return fail(422, verdict.reason);
   const ownerHash = await ownerHashOf(d.salt, 'device', sub.owner);
-  const outcomeHash = await outcomeHashOf(replay.seed, ownerHash, verdict.summary);
+  const outcomeHash = await outcomeHashOf(replay.seed, ownerHash, verdict.summary, canonical.actions.length);
   if (await d.repo.seen(outcomeHash, replay.mode === 'endless' ? replay.seed : null)) return fail(409, 'already on the board');
   const id = crypto.randomUUID();
   const name = await nameFor(d, sub.name, ownerHash, id.slice(0, 4));

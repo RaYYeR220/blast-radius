@@ -12,6 +12,8 @@ export function cleanName(raw: string, fallbackTag: string): string {
     .slice(0, 16)
     .trim();
   if (name.length < 3) return fallback;
+  // anonymous tags are handed out, never chosen
+  if (name.toLowerCase().startsWith('anon-')) return fallback;
   const lower = name.toLowerCase();
   if (BLOCKED.some((w) => lower.includes(w))) return fallback;
   return name;

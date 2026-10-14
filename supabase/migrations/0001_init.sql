@@ -59,8 +59,9 @@ alter table public.agent_sessions enable row level security;
 alter table public.rate_limits enable row level security;
 alter table public.names enable row level security;
 
--- The boards are public; nothing else is readable or writable without the service role.
-create policy runs_public_read on public.runs for select to anon, authenticated using (true);
+-- No policies: RLS denies every anon/authenticated read and write. Boards are served
+-- only through the API (service role), which never returns owner or outcome hashes.
+revoke all on public.runs, public.agent_sessions, public.names, public.rate_limits from anon, authenticated;
 
 create or replace function public.bump_rate(p_key text, p_window timestamptz, p_limit int)
 returns boolean

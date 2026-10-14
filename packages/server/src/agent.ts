@@ -156,7 +156,7 @@ export async function submitAgentRun(d: Deps, ip: string, body: { run?: unknown;
     await release();
     return fail(422, verdict.reason);
   }
-  const outcomeHash = await outcomeHashOf(row.seed, row.ownerHash, verdict.summary);
+  const outcomeHash = await outcomeHashOf(row.seed, row.ownerHash, verdict.summary, row.actions.length);
   if (await d.repo.seen(outcomeHash, null)) return fail(409, 'this exact run is already on the board');
   const id = crypto.randomUUID();
   const createdAt = new Date(d.now()).toISOString();

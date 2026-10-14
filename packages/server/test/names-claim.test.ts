@@ -49,3 +49,31 @@ describe('names belong to whoever claimed them first', () => {
     expect((await finish('other-key-987654321')).status).toBe(409);
   });
 });
+
+describe('copied replays', () => {
+  it('refuses another device submitting a copy of a real run, padded or not', async () => {
+    const { verifyReplay } = await import('@blast/sim');
+    const d = deps();
+    const run = playToEnd('daily-2026-10-15', 'daily', 'sloppy');
+    expect(run.replay.actions.length).toBeGreaterThanOrEqual(3);
+    expect((await send(d, run, 'ada', OWNER_A)).status).toBe(200);
+    expect((await send(d, run, 'thief', OWNER_B)).status).toBe(409);
+    const base = verifyReplay(run.replay, { score: run.score });
+    if (!base.ok) throw new Error('honest run failed');
+    const last = base.summary.durationTicks - 1;
+    for (let edge = 0; edge < 80; edge++) {
+      const padded = { ...run.replay, actions: [...run.replay.actions, { tick: last, a: { type: 'cut' as const, edge, t: 500 } }] };
+      const v = verifyReplay(padded, { score: run.score });
+      if (!v.ok || v.summary.shipped !== base.summary.shipped || v.summary.intercepts !== base.summary.intercepts) continue;
+      expect((await send(d, { replay: padded, score: run.score }, 'thief2', OWNER_B)).status).toBe(409);
+      return;
+    }
+    throw new Error('no padding variant found');
+  });
+
+  it('will not let a player pick an anonymous tag as a name', async () => {
+    const { cleanName } = await import('../src/names');
+    expect(cleanName('anon-abcd', 'zzzz')).toBe('anon-zzzz');
+    expect(cleanName('ANON-abcd', 'zzzz')).toBe('anon-zzzz');
+  });
+});
