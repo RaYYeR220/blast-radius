@@ -54,3 +54,38 @@ describe('dedup cannot be dodged', () => {
     expect((await submitRun(d, '1.1.1.1', body({ replay: padded, score }))).status).toBe(409);
   });
 });
+
+describe('near-duplicates', () => {
+  it('treats a run with a pointless extra cut at the very end as the same run', async () => {
+    const { verifyReplay } = await import('@blast/sim');
+    const d = deps();
+    const { replay, score } = playToEnd('daily-2026-10-15', 'daily', 'sloppy');
+    const base = verifyReplay(replay, { score });
+    if (!base.ok) throw new Error('honest replay failed');
+    expect((await submitRun(d, '1.1.1.1', body({ replay, score }))).status).toBe(200);
+    const last = base.summary.durationTicks - 1;
+    let tried = 0;
+    for (let edge = 0; edge < 80 && tried < 1; edge++) {
+      const variant = { ...replay, actions: [...replay.actions, { tick: last, a: { type: 'cut' as const, edge, t: 500 } }] };
+      const v = verifyReplay(variant, { score });
+      if (!v.ok || v.summary.finalHash === base.summary.finalHash) continue;
+      if (v.summary.shipped !== base.summary.shipped || v.summary.intercepts !== base.summary.intercepts) continue;
+      tried++;
+      expect((await submitRun(d, '2.2.2.2', body({ replay: variant, score }))).status).toBe(409);
+    }
+    expect(tried).toBe(1);
+  });
+
+  it('shows each name once on a board, with its best score', async () => {
+    const { leaderboard } = await import('../src/runs');
+    const d = deps();
+    for (const bot of ['idle', 'sloppy'] as const) {
+      const t = (await issueSeed(d, '1.1.1.1')).body as { seed: string; token: string };
+      const run = playToEnd(t.seed, 'endless', bot);
+      expect((await submitRun(d, '1.1.1.1', body({ ...run, token: t.token, name: 'same-name' }))).status).toBe(200);
+    }
+    const rows = ((await leaderboard(d, new URLSearchParams({ board: 'endless' }))).body as { rows: Array<{ name: string; score: number }> }).rows;
+    expect(rows.filter((r) => r.name === 'same-name')).toHaveLength(1);
+    expect(rows[0]!.score).toBe(Math.max(...d.repo.runs.map((r) => r.score)));
+  });
+});

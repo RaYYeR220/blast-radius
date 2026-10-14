@@ -35,6 +35,8 @@ export interface SessionRow {
   agentName: string | null;
   /** The game as it stands, so each call resumes in O(advance) instead of replaying the log. */
   snapshot: string;
+  /** Bumped on every write; a write against a stale version is refused. */
+  version: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -49,7 +51,8 @@ export interface Repo {
   seen(outcomeHash: string, endlessSeed: string | null): Promise<boolean>;
   createSession(row: SessionRow): Promise<void>;
   getSession(id: string): Promise<SessionRow | null>;
-  updateSession(id: string, patch: Partial<SessionRow>): Promise<void>;
+  /** Applies `patch` only if the row is still at `expectedVersion`; returns whether it did. */
+  updateSession(id: string, patch: Partial<SessionRow>, expectedVersion: number): Promise<boolean>;
   /** Counts a hit in the window; false when the limit is exceeded. */
   bumpRate(key: string, windowStart: number, limit: number): Promise<boolean>;
 }
@@ -103,9 +106,11 @@ export class MemoryRepo implements Repo {
     return s ? structuredClone(s) : null;
   }
 
-  async updateSession(id: string, patch: Partial<SessionRow>): Promise<void> {
+  async updateSession(id: string, patch: Partial<SessionRow>, expectedVersion: number): Promise<boolean> {
     const s = this.sessions.get(id);
-    if (s) this.sessions.set(id, { ...s, ...structuredClone(patch) });
+    if (!s || s.version !== expectedVersion) return false;
+    this.sessions.set(id, { ...s, ...structuredClone(patch), version: expectedVersion + 1 });
+    return true;
   }
 
   async bumpRate(key: string, windowStart: number, limit: number): Promise<boolean> {

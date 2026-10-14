@@ -60,6 +60,7 @@ export async function startRun(d: Deps, ip: string, body: { mode?: unknown; name
     status: 'live',
     agentName: typeof body.name === 'string' ? cleanName(body.name, id.slice(0, 4)) : null,
     snapshot: '',
+    version: 0,
     createdAt: now,
     updatedAt: now,
   };
@@ -118,13 +119,12 @@ export async function actRun(
   }
   const log: ReplayEntry[] = [...row.actions, ...accepted.map((a) => ({ tick: at, a }))];
   const over = state.phase === 'over';
-  await d.repo.updateSession(row.id, {
-    actions: log,
-    tick: state.tick,
-    snapshot: snapshot(state),
-    status: over ? 'over' : 'live',
-    updatedAt: new Date(d.now()).toISOString(),
-  });
+  const saved = await d.repo.updateSession(
+    row.id,
+    { actions: log, tick: state.tick, snapshot: snapshot(state), status: over ? 'over' : 'live', updatedAt: new Date(d.now()).toISOString() },
+    row.version,
+  );
+  if (!saved) return fail(409, 'another call moved this run first; observe and try again');
   return {
     status: 200,
     body: {
@@ -144,11 +144,17 @@ export async function submitAgentRun(d: Deps, ip: string, body: { run?: unknown;
   if (row.status === 'submitted') return fail(409, 'already submitted');
   if (row.status !== 'over') return fail(409, 'finish the run first');
   if (row.mode !== 'daily') return fail(422, 'practice runs are not ranked; start a daily run');
+  // claim the run first, so two racing submits cannot both rank it
+  if (!(await d.repo.updateSession(row.id, { status: 'submitted' }, row.version))) return fail(409, 'already submitted');
+  const release = () => d.repo.updateSession(row.id, { status: 'over' }, row.version + 1);
   const state = restore(row.snapshot);
   // the ranked score comes from a full re-simulation of the log, never from the stored snapshot
   const verdict = verifyReplay({ v: SIM_VERSION, mode: 'agent', seed: row.seed, actions: row.actions }, { score: state.score });
-  if (!verdict.ok) return fail(422, verdict.reason);
-  const outcomeHash = await outcomeHashOf(row.seed, verdict.summary.finalHash);
+  if (!verdict.ok) {
+    await release();
+    return fail(422, verdict.reason);
+  }
+  const outcomeHash = await outcomeHashOf(row.seed, verdict.summary);
   if (await d.repo.seen(outcomeHash, null)) return fail(409, 'this exact run is already on the board');
   const id = crypto.randomUUID();
   const createdAt = new Date(d.now()).toISOString();
@@ -177,7 +183,6 @@ export async function submitAgentRun(d: Deps, ip: string, body: { run?: unknown;
     outcomeHash,
     createdAt,
   });
-  await d.repo.updateSession(row.id, { status: 'submitted', updatedAt: createdAt });
   const rank = await d.repo.rankOf('agents', day, s.score, createdAt);
   return { status: 200, body: { id, score: s.score, rank, board: 'agents', day, name } };
 }

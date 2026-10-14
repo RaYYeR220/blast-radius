@@ -18,8 +18,12 @@ function toTool(r: ApiResult) {
   return r.status === 200 ? { content: [{ type: 'text' as const, text }] } : { isError: true, content: [{ type: 'text' as const, text }] };
 }
 
+/**
+ * The caller's address as the hosting platform reports it. A client can send
+ * its own X-Forwarded-For, so that header is never trusted on its own.
+ */
 export function clientIp(req: Request): string {
-  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown';
+  return req.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip')?.trim() || 'unknown';
 }
 
 /** A remote MCP endpoint over which any agent can play the daily board. */

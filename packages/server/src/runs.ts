@@ -1,4 +1,4 @@
-import { canonicalActions, type Replay, SIM_VERSION, verifyReplay } from '@blast/sim';
+import { canonicalActions, type Replay, type RunSummary, SIM_VERSION, verifyReplay } from '@blast/sim';
 import { cleanName } from './names';
 import { hashKey, windowStart } from './rate';
 import type { Board, Repo, RunRow } from './repo';
@@ -44,8 +44,13 @@ function sameString(a: string, b: string): boolean {
   return x === 0;
 }
 
-export function outcomeHashOf(seed: string, finalHash: string): Promise<string> {
-  return sha256(seed + '|' + finalHash);
+/**
+ * What a run achieved, not how its log is spelled: a cosmetic extra action
+ * (a no-op, a cut on an empty link) leaves these numbers alone, so it cannot
+ * put the same game on the board twice.
+ */
+export function outcomeHashOf(seed: string, s: RunSummary): Promise<string> {
+  return sha256([seed, s.score, s.durationTicks, s.shipped, s.intercepts, s.infected, s.wave, s.endedBy].join('|'));
 }
 
 /** Endless seeds are handed out by the server, so nobody ranks a seed they picked by hand. */
@@ -109,7 +114,7 @@ export async function submitRun(d: Deps, ip: string, raw: string): Promise<ApiRe
   const canonical: Replay = { ...replay, actions: canonicalActions(replay.actions) };
   const verdict = verifyReplay(canonical, { score: sub.score });
   if (!verdict.ok) return fail(422, verdict.reason);
-  const outcomeHash = await outcomeHashOf(replay.seed, verdict.summary.finalHash);
+  const outcomeHash = await outcomeHashOf(replay.seed, verdict.summary);
   if (await d.repo.seen(outcomeHash, replay.mode === 'endless' ? replay.seed : null)) return fail(409, 'already on the board');
   const id = crypto.randomUUID();
   const board = replay.mode as Extract<Board, 'daily' | 'endless'>; // checked in parseSubmission
@@ -153,13 +158,18 @@ export async function leaderboard(d: Deps, q: URLSearchParams): Promise<ApiResul
   if (dayParam && !DAY.test(dayParam)) return fail(400, 'day must be YYYY-MM-DD');
   const day = board === 'endless' ? null : (dayParam ?? isoDay(d.now()));
   const limit = Math.max(1, Math.min(50, Number(q.get('limit') ?? 50) || 50));
-  const rows = await d.repo.top(board, day, limit);
-  const out = rows.map((r, i) => publicRow(r, i + 1));
+  // each name appears once, with its best run (rows arrive best-first)
+  const names = new Set<string>();
+  const best = (await d.repo.top(board, day, 500)).filter((r) => !names.has(r.name) && names.add(r.name));
+  const out = best.slice(0, limit).map((r, i) => publicRow(r, i + 1));
   let me: ReturnType<typeof publicRow> | null = null;
   const around = q.get('around');
   if (around && UUID.test(around)) {
     const r = await d.repo.getRun(around);
-    if (r && r.board === board && r.day === day) me = publicRow(r, await d.repo.rankOf(board, day, r.score, r.createdAt));
+    if (r && r.board === board && r.day === day) {
+      const at = best.findIndex((x) => x.id === r.id);
+      me = publicRow(r, at >= 0 ? at + 1 : await d.repo.rankOf(board, day, r.score, r.createdAt));
+    }
   }
   return { status: 200, body: { board, day, rows: out, me } };
 }
