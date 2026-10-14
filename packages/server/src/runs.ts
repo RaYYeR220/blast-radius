@@ -142,7 +142,7 @@ export async function submitRun(d: Deps, ip: string, raw: string): Promise<ApiRe
     outcomeHash,
     createdAt,
   };
-  await d.repo.insertRun(row);
+  if ((await d.repo.insertRun(row)) === 'duplicate') return fail(409, 'already on the board');
   const rank = await d.repo.rankOf(board, day, s.score, createdAt);
   return { status: 200, body: { id, score: s.score, rank, board, day, name: row.name } };
 }

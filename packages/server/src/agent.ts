@@ -162,7 +162,7 @@ export async function submitAgentRun(d: Deps, ip: string, body: { run?: unknown;
   const name =
     typeof body.name === 'string' ? cleanName(body.name, id.slice(0, 4)) : (row.agentName ?? `agent-${id.slice(0, 4)}`);
   const day = row.seed.slice('daily-'.length);
-  await d.repo.insertRun({
+  const inserted = await d.repo.insertRun({
     id,
     board: 'agents',
     mode: 'agent',
@@ -183,6 +183,7 @@ export async function submitAgentRun(d: Deps, ip: string, body: { run?: unknown;
     outcomeHash,
     createdAt,
   });
+  if (inserted === 'duplicate') return fail(409, 'this exact run is already on the board');
   const rank = await d.repo.rankOf('agents', day, s.score, createdAt);
   return { status: 200, body: { id, score: s.score, rank, board: 'agents', day, name } };
 }

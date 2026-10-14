@@ -42,7 +42,8 @@ export interface SessionRow {
 }
 
 export interface Repo {
-  insertRun(row: RunRow): Promise<void>;
+  /** 'duplicate' when the outcome (or the endless seed) is already ranked: the store enforces it, not just the caller. */
+  insertRun(row: RunRow): Promise<'ok' | 'duplicate'>;
   /** 1 + the number of runs on this board/day that beat `score` (ties go to the earlier run). */
   rankOf(board: Board, day: string | null, score: number, createdAt: string): Promise<number>;
   top(board: Board, day: string | null, limit: number): Promise<RunRow[]>;
@@ -63,8 +64,13 @@ export class MemoryRepo implements Repo {
   sessions = new Map<string, SessionRow>();
   rates = new Map<string, number>();
 
-  async insertRun(row: RunRow): Promise<void> {
+  async insertRun(row: RunRow): Promise<'ok' | 'duplicate'> {
+    const clash = this.runs.some(
+      (r) => r.outcomeHash === row.outcomeHash || (row.board === 'endless' && r.board === 'endless' && r.seed === row.seed),
+    );
+    if (clash) return 'duplicate';
     this.runs.push(structuredClone(row));
+    return 'ok';
   }
 
   private board(board: Board, day: string | null): RunRow[] {

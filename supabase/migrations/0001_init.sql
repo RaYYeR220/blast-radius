@@ -33,6 +33,7 @@ create table public.agent_sessions (
   status text not null default 'live' check (status in ('live', 'over', 'submitted')),
   agent_name text,
   snapshot text not null,
+  version int not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

@@ -65,3 +65,20 @@ describe('clientIp', () => {
     expect(clientIp(new Request('https://x.test', { headers: { 'x-forwarded-for': '6.6.6.6' } }))).toBe('unknown');
   });
 });
+
+describe('racing human submissions', () => {
+  it('ranks the same replay once even when both pass the early check', async () => {
+    const { submitRun } = await import('../src/runs');
+    const { playToEnd } = await import('./helpers');
+    const d = deps();
+    const seen = d.repo.seen.bind(d.repo);
+    let calls = 0;
+    // both requests see "not on the board yet", as they would under a real race
+    d.repo.seen = async (...args) => (calls++ < 2 ? false : seen(...args));
+    const { replay, score } = playToEnd('daily-2026-10-15', 'daily', 'sloppy');
+    const body = JSON.stringify({ replay, score });
+    const [a, b] = await Promise.all([submitRun(d, '1.1.1.1', body), submitRun(d, '2.2.2.2', body)]);
+    expect([a.status, b.status].sort()).toEqual([200, 409]);
+    expect(d.repo.runs).toHaveLength(1);
+  });
+});
