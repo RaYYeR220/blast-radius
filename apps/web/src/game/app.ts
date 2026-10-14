@@ -632,8 +632,9 @@ export class App implements KeyTarget, UiHost {
     }
     if (screen === 'over') this.jumpToReport();
     else if (screen === 'play' || screen === 'shop') {
-      this.play('endless');
-      const run = this.run!;
+      // straight in, without waiting on a server seed: screenshots are never ranked
+      this.wake();
+      const run = this.begin(this.seeds.ticket('endless', { custom: this.customSeed, autoplay: !!this.autoplay }), this.autoplay);
       run.tutorial = false;
       if (screen === 'shop') this.ahead(run, 'heuristic', (s) => s.phase === 'shop', 20_000);
       else if (ff > 0) this.ahead(run, this.autoplay ?? 'heuristic', (s) => s.tick >= ff, ff + 4000);
