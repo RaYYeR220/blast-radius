@@ -2,7 +2,7 @@ export * from './constants';
 export type * from './types';
 export { Rng } from './rng';
 export { createGame, createEmptyState, step } from './step';
-export { Recorder, runReplay, verifyReplay, summarize, MAX_REPLAY_ENTRIES } from './replay';
+export { Recorder, runReplay, verifyReplay, summarize, canonicalActions, MAX_REPLAY_ENTRIES } from './replay';
 export type { Replay, ReplayEntry, RunSummary, Verdict } from './replay';
 export { stateHash } from './hash';
 export { observe } from './observe';

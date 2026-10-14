@@ -101,3 +101,13 @@ describe('getRun', () => {
     expect((await getRun(d, 'drop table')).status).toBe(400);
   });
 });
+
+describe('malformed action entries', () => {
+  it('get a 4xx, never a crash', async () => {
+    const d = deps();
+    const replay = { v: 1, mode: 'daily', seed: 'daily-2026-10-15', actions: [null, { tick: 1 }] };
+    const r = await submitRun(d, '1.1.1.1', body({ replay, score: 0 }));
+    expect(r.status).toBeGreaterThanOrEqual(400);
+    expect(r.status).toBeLessThan(500);
+  });
+});

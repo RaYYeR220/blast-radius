@@ -1,4 +1,5 @@
 import { MAX_RUN_TICKS, SIM_VERSION } from './constants';
+import { stateHash } from './hash';
 import { createGame, step } from './step';
 import type { Action, EndReason, GameState, Mode, SimEvent } from './types';
 
@@ -24,6 +25,8 @@ export interface RunSummary {
   durationTicks: number;
   rootPayload: number | null;
   leakPath: number[] | null;
+  /** Hash of the final state: two logs that end identically are the same run. */
+  finalHash: string;
 }
 
 export const MAX_REPLAY_ENTRIES = 20_000;
@@ -45,6 +48,25 @@ export class Recorder {
 }
 
 const ACTION_TYPES = new Set(['cut', 'quarantine', 'pick', 'reroll', 'skip']);
+
+/** Rebuilds each action with only the fields the rules read, in a fixed order. */
+export function canonicalActions(entries: readonly ReplayEntry[]): ReplayEntry[] {
+  return entries.map((e) => {
+    // malformed entries pass through untouched; verification rejects them
+    if (!e || typeof e !== 'object' || !e.a || typeof e.a !== 'object') return e;
+    const { tick, a } = e;
+    switch (a.type) {
+      case 'cut':
+        return { tick, a: { type: 'cut', edge: a.edge, t: a.t } };
+      case 'quarantine':
+        return { tick, a: { type: 'quarantine', node: a.node } };
+      case 'pick':
+        return { tick, a: { type: 'pick', slot: a.slot } };
+      default:
+        return { tick, a: { type: a.type } as Action };
+    }
+  });
+}
 
 function wellFormed(r: Replay): string | null {
   if (!r || typeof r !== 'object') return 'not a replay';
@@ -93,6 +115,7 @@ export function summarize(s: GameState): RunSummary {
     durationTicks: s.tick,
     rootPayload: s.rootPayload,
     leakPath: s.leakPath,
+    finalHash: stateHash(s),
   };
 }
 

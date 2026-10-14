@@ -113,3 +113,20 @@ describe('agent sessions', () => {
     expect(b.observation.wave).toBe(2);
   });
 });
+
+describe('agent dedup', () => {
+  it('ranks two sessions that played identically only once', async () => {
+    const d = deps();
+    const play = async () => {
+      let { run, observation } = (await startRun(d, '1.1.1.1', { name: 'twin' })).body as Obs;
+      for (let i = 0; i < 3000; i++) {
+        const b = (await actRun(d, '1.1.1.1', { run, actions: policy(observation), advance: 30 })).body as ActOut;
+        observation = b.observation;
+        if (b.over) break;
+      }
+      return submitAgentRun(d, '1.1.1.1', { run });
+    };
+    expect((await play()).status).toBe(200);
+    expect((await play()).status).toBe(409);
+  });
+});

@@ -12,7 +12,7 @@ import {
 } from '@blast/sim';
 import { cleanName } from './names';
 import type { SessionRow } from './repo';
-import { type ApiResult, type Deps, limited, replayHashOf } from './runs';
+import { type ApiResult, type Deps, limited, outcomeHashOf } from './runs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_ACTIONS = 20;
@@ -148,6 +148,8 @@ export async function submitAgentRun(d: Deps, ip: string, body: { run?: unknown;
   // the ranked score comes from a full re-simulation of the log, never from the stored snapshot
   const verdict = verifyReplay({ v: SIM_VERSION, mode: 'agent', seed: row.seed, actions: row.actions }, { score: state.score });
   if (!verdict.ok) return fail(422, verdict.reason);
+  const outcomeHash = await outcomeHashOf(row.seed, verdict.summary.finalHash);
+  if (await d.repo.seen(outcomeHash, null)) return fail(409, 'this exact run is already on the board');
   const id = crypto.randomUUID();
   const createdAt = new Date(d.now()).toISOString();
   const s = verdict.summary;
@@ -172,7 +174,7 @@ export async function submitAgentRun(d: Deps, ip: string, body: { run?: unknown;
     durationTicks: s.durationTicks,
     rootPayload: s.rootPayload,
     actions: row.actions,
-    replayHash: await replayHashOf(row.seed, row.actions),
+    outcomeHash,
     createdAt,
   });
   await d.repo.updateSession(row.id, { status: 'submitted', updatedAt: createdAt });

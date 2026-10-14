@@ -32,3 +32,25 @@ describe('leaderboard integrity', () => {
     expect((await submitRun(deps(), '1.1.1.1', body(run))).status).toBe(200);
   });
 });
+
+describe('dedup cannot be dodged', () => {
+  it('treats junk fields as the same run', async () => {
+    const d = deps();
+    const { replay, score } = playToEnd('daily-2026-10-15', 'daily', 'sloppy');
+    expect((await submitRun(d, '1.1.1.1', body({ replay, score }))).status).toBe(200);
+    // same game, different bytes: an extra field on every action
+    const junk = { ...replay, actions: replay.actions.map((e) => ({ tick: e.tick, a: { ...e.a, junk: 1 } })) };
+    expect((await submitRun(d, '1.1.1.1', body({ replay: junk, score }))).status).toBe(409);
+    expect(JSON.stringify(d.repo.runs[0]!.actions)).not.toContain('junk');
+  });
+
+  it('refuses a daily replay padded with no-op cuts', async () => {
+    const d = deps();
+    const { replay, score } = playToEnd('daily-2026-10-15', 'daily', 'sloppy');
+    expect((await submitRun(d, '1.1.1.1', body({ replay, score }))).status).toBe(200);
+    const firstCut = replay.actions.find((e) => e.a.type === 'cut')!;
+    const padded = { ...replay, actions: [...replay.actions] };
+    padded.actions.splice(padded.actions.indexOf(firstCut) + 1, 0, { tick: firstCut.tick, a: { ...firstCut.a } });
+    expect((await submitRun(d, '1.1.1.1', body({ replay: padded, score }))).status).toBe(409);
+  });
+});

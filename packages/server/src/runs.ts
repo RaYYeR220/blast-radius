@@ -1,4 +1,4 @@
-import { type Replay, SIM_VERSION, verifyReplay } from '@blast/sim';
+import { canonicalActions, type Replay, SIM_VERSION, verifyReplay } from '@blast/sim';
 import { cleanName } from './names';
 import { hashKey, windowStart } from './rate';
 import type { Board, Repo, RunRow } from './repo';
@@ -44,8 +44,8 @@ function sameString(a: string, b: string): boolean {
   return x === 0;
 }
 
-export function replayHashOf(seed: string, actions: unknown): Promise<string> {
-  return sha256(seed + '|' + JSON.stringify(actions));
+export function outcomeHashOf(seed: string, finalHash: string): Promise<string> {
+  return sha256(seed + '|' + finalHash);
 }
 
 /** Endless seeds are handed out by the server, so nobody ranks a seed they picked by hand. */
@@ -106,10 +106,11 @@ export async function submitRun(d: Deps, ip: string, raw: string): Promise<ApiRe
   const { replay } = sub;
   if (replay.mode === 'daily' && !dailyAllowed(replay.seed, d.now())) return fail(422, 'that daily has closed');
   if (replay.mode === 'endless' && !(await tokenValid(d, replay.seed, sub.token))) return fail(422, 'unknown or expired seed');
-  const replayHash = await replayHashOf(replay.seed, replay.actions);
-  if (await d.repo.seen(replayHash, replay.mode === 'endless' ? replay.seed : null)) return fail(409, 'already on the board');
-  const verdict = verifyReplay(replay, { score: sub.score });
+  const canonical: Replay = { ...replay, actions: canonicalActions(replay.actions) };
+  const verdict = verifyReplay(canonical, { score: sub.score });
   if (!verdict.ok) return fail(422, verdict.reason);
+  const outcomeHash = await outcomeHashOf(replay.seed, verdict.summary.finalHash);
+  if (await d.repo.seen(outcomeHash, replay.mode === 'endless' ? replay.seed : null)) return fail(409, 'already on the board');
   const id = crypto.randomUUID();
   const board = replay.mode as Extract<Board, 'daily' | 'endless'>; // checked in parseSubmission
   const day = board === 'daily' ? replay.seed.slice('daily-'.length) : null;
@@ -132,8 +133,8 @@ export async function submitRun(d: Deps, ip: string, raw: string): Promise<ApiRe
     endedBy: s.endedBy,
     durationTicks: s.durationTicks,
     rootPayload: s.rootPayload,
-    actions: replay.actions,
-    replayHash,
+    actions: canonical.actions,
+    outcomeHash,
     createdAt,
   };
   await d.repo.insertRun(row);

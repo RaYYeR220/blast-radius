@@ -20,8 +20,8 @@ export interface RunRow {
   durationTicks: number;
   rootPayload: number | null;
   actions: ReplayEntry[];
-  /** sha256 of seed + action log; a replay is ranked at most once. */
-  replayHash: string;
+  /** sha256 of seed + final game state; the same outcome is ranked at most once, however the log is written. */
+  outcomeHash: string;
   createdAt: string;
 }
 
@@ -45,8 +45,8 @@ export interface Repo {
   rankOf(board: Board, day: string | null, score: number, createdAt: string): Promise<number>;
   top(board: Board, day: string | null, limit: number): Promise<RunRow[]>;
   getRun(id: string): Promise<RunRow | null>;
-  /** Is this replay, or (for endless) this seed, already on a board? */
-  seen(replayHash: string, endlessSeed: string | null): Promise<boolean>;
+  /** Is this outcome, or (for endless) this seed, already on a board? */
+  seen(outcomeHash: string, endlessSeed: string | null): Promise<boolean>;
   createSession(row: SessionRow): Promise<void>;
   getSession(id: string): Promise<SessionRow | null>;
   updateSession(id: string, patch: Partial<SessionRow>): Promise<void>;
@@ -88,9 +88,9 @@ export class MemoryRepo implements Repo {
     return r ? structuredClone(r) : null;
   }
 
-  async seen(replayHash: string, endlessSeed: string | null): Promise<boolean> {
+  async seen(outcomeHash: string, endlessSeed: string | null): Promise<boolean> {
     return this.runs.some(
-      (r) => r.replayHash === replayHash || (endlessSeed !== null && r.board === 'endless' && r.seed === endlessSeed),
+      (r) => r.outcomeHash === outcomeHash || (endlessSeed !== null && r.board === 'endless' && r.seed === endlessSeed),
     );
   }
 

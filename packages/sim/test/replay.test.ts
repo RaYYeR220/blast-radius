@@ -142,3 +142,21 @@ describe('observe', () => {
     for (const p of o.packets) expect(typeof p.text).toBe('string');
   });
 });
+
+describe('canonicalActions', () => {
+  it('drops unknown fields and keeps the rule fields in order', async () => {
+    const { canonicalActions } = await import('../src/replay');
+    const out = canonicalActions([{ tick: 3, a: { t: 5, edge: 2, type: 'cut', extra: true } as unknown as Action }]);
+    expect(JSON.stringify(out)).toBe('[{"tick":3,"a":{"type":"cut","edge":2,"t":5}}]');
+  });
+
+  it('passes malformed entries through untouched so verification rejects them', async () => {
+    const { canonicalActions } = await import('../src/replay');
+    const junk = [null, { tick: 1 }, { tick: 2, a: 'cut' }] as unknown as ReplayEntryLike[];
+    expect(() => canonicalActions(junk as never)).not.toThrow();
+    const r = { v: SIM_VERSION, mode: 'endless', seed: 'x', actions: canonicalActions(junk as never) } as Replay;
+    expect(verifyReplay(r, { score: 0 }).ok).toBe(false);
+  });
+});
+
+type ReplayEntryLike = { tick: number; a: unknown };
