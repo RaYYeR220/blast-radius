@@ -1,5 +1,7 @@
 import { backlog, capacity, createGame, type GameOptions, quarantineCost, UPGRADES } from '@blast/sim';
 import { type BotKind, makeBot } from '@blast/sim/bots';
+import { AudioEngine } from './audio/engine';
+import { threatOf } from './audio/threat';
 import { Camera } from './game/camera';
 import { Blade, tapToAction } from './game/input';
 import { GameLoop } from './game/loop';
@@ -20,6 +22,8 @@ document.body.style.cssText = 'margin:0;background:#11100e;overflow:hidden;touch
 
 const INSETS = { top: 56, right: 12, bottom: 56, left: 12 };
 const camera = new Camera();
+const audio = new AudioEngine();
+let muted = false;
 let dpr = 1;
 let view: View = fitView(innerWidth, innerHeight, 1);
 const renderer = new GrayboxRenderer(canvas);
@@ -30,7 +34,10 @@ let autoplay: ReturnType<typeof makeBot> | null = null;
 function newRun(): void {
   const opts: GameOptions = { seed: params.get('seed') ?? `run-${Date.now()}`, mode: 'endless' };
   session = new Session(opts, createGame(opts));
-  session.on((e) => renderer.onEvent(session.state, e));
+  session.on((e) => {
+    renderer.onEvent(session.state, e);
+    audio.onEvent(e);
+  });
   const kind = params.get('autoplay') as BotKind | null;
   autoplay = kind ? makeBot(kind, opts.seed) : null;
   camera.reset();
@@ -77,6 +84,7 @@ const loop = new GameLoop({
   onRender: (alpha) => {
     const s = session.state;
     view = fitView(innerWidth, innerHeight, dpr, INSETS, camera.update(s));
+    audio.setThreat(s.phase === 'play' ? threatOf(s) : 0);
     if (autoplay && s.phase === 'shop') session.act(autoplay(s));
     syncPanels();
     hud.textContent =
@@ -87,7 +95,13 @@ const loop = new GameLoop({
   },
 });
 
+function wake(): void {
+  audio.unlock();
+  audio.startMusic();
+}
+
 canvas.addEventListener('pointerdown', (e) => {
+  wake();
   canvas.setPointerCapture(e.pointerId);
   blade.begin(e.clientX, e.clientY);
 });
@@ -104,6 +118,8 @@ canvas.addEventListener('pointerup', () => {
   }
 });
 addEventListener('keydown', (e) => {
+  wake();
+  if (e.key === 'm' || e.key === 'M') audio.setMuted((muted = !muted));
   if (e.key === 'r' || e.key === 'R') newRun();
   if (e.key === 'Escape') loop.paused ? loop.resume() : loop.pause();
   const s = session.state;
