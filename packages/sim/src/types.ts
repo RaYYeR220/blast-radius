@@ -75,6 +75,8 @@ export interface Packet {
   hunterDone: boolean;
   /** Node ids visited, used to draw the leak path. */
   trail: number[];
+  /** Set when the packet leaves play; dead packets are swept at the end of a step. */
+  dead: boolean;
 }
 
 export type Action =
