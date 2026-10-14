@@ -8,7 +8,7 @@ import { build } from 'esbuild';
 const here = dirname(fileURLToPath(import.meta.url));
 const out = resolve(here, '../../.vercel/output');
 const web = resolve(here, '../web/dist');
-const ROUTES = ['runs', 'seed', 'leaderboard', 'run', 'agent', 'mcp'];
+const ROUTES = ['runs', 'seed', 'leaderboard', 'run', 'agent', 'mcp', 'share'];
 
 rmSync(out, { recursive: true, force: true });
 mkdirSync(resolve(out, 'static'), { recursive: true });
@@ -58,6 +58,7 @@ writeFileSync(
       version: 3,
       routes: [
         { src: '^/api/agent/(start|observe|act|submit)/?$', dest: '/api/agent?op=$1' },
+        { src: '^/r/([0-9a-fA-F-]{36})/?$', dest: '/api/share?id=$1' },
         { src: '^/assets/(.*)$', headers: { 'cache-control': 'public, max-age=31536000, immutable' }, continue: true },
         { handle: 'filesystem' },
       ],
