@@ -18,6 +18,7 @@ create table public.runs (
   root_payload int,
   actions jsonb not null,
   outcome_hash text not null unique,
+  owner_hash text not null,
   created_at timestamptz not null default now()
 );
 create index runs_board_day_score on public.runs (board, day, score desc, created_at);
@@ -32,10 +33,18 @@ create table public.agent_sessions (
   tick int not null default 0,
   status text not null default 'live' check (status in ('live', 'over', 'submitted')),
   agent_name text,
+  owner_hash text not null,
   snapshot text not null,
   version int not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+-- A display name belongs to the first device (or agent key) that used it.
+create table public.names (
+  name_key text primary key,
+  owner_hash text not null,
+  created_at timestamptz not null default now()
 );
 
 create table public.rate_limits (
@@ -48,6 +57,7 @@ create table public.rate_limits (
 alter table public.runs enable row level security;
 alter table public.agent_sessions enable row level security;
 alter table public.rate_limits enable row level security;
+alter table public.names enable row level security;
 
 -- The boards are public; nothing else is readable or writable without the service role.
 create policy runs_public_read on public.runs for select to anon, authenticated using (true);

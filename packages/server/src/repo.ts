@@ -20,8 +20,10 @@ export interface RunRow {
   durationTicks: number;
   rootPayload: number | null;
   actions: ReplayEntry[];
-  /** sha256 of seed + final game state; the same outcome is ranked at most once, however the log is written. */
+  /** sha256 of seed, owner and what the run achieved: one owner ranks an outcome once. */
   outcomeHash: string;
+  /** sha256 of the submitter's device (or agent) key; never the key itself. */
+  ownerHash: string;
   createdAt: string;
 }
 
@@ -33,6 +35,7 @@ export interface SessionRow {
   tick: number;
   status: 'live' | 'over' | 'submitted';
   agentName: string | null;
+  ownerHash: string;
   /** The game as it stands, so each call resumes in O(advance) instead of replaying the log. */
   snapshot: string;
   /** Bumped on every write; a write against a stale version is refused. */
@@ -54,6 +57,8 @@ export interface Repo {
   getSession(id: string): Promise<SessionRow | null>;
   /** Applies `patch` only if the row is still at `expectedVersion`; returns whether it did. */
   updateSession(id: string, patch: Partial<SessionRow>, expectedVersion: number): Promise<boolean>;
+  /** Reserves a display name for an owner. 'taken' if someone else holds it. */
+  claimName(name: string, ownerHash: string): Promise<'ok' | 'taken'>;
   /** Counts a hit in the window; false when the limit is exceeded. */
   bumpRate(key: string, windowStart: number, limit: number): Promise<boolean>;
 }
@@ -63,6 +68,15 @@ export class MemoryRepo implements Repo {
   runs: RunRow[] = [];
   sessions = new Map<string, SessionRow>();
   rates = new Map<string, number>();
+  names = new Map<string, string>();
+
+  async claimName(name: string, ownerHash: string): Promise<'ok' | 'taken'> {
+    const key = name.toLowerCase();
+    const holder = this.names.get(key);
+    if (holder && holder !== ownerHash) return 'taken';
+    this.names.set(key, ownerHash);
+    return 'ok';
+  }
 
   async insertRun(row: RunRow): Promise<'ok' | 'duplicate'> {
     const clash = this.runs.some(

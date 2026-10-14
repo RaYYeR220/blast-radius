@@ -20,6 +20,7 @@ interface RunDb {
   root_payload: number | null;
   actions: RunRow['actions'];
   outcome_hash: string;
+  owner_hash: string;
   created_at: string;
 }
 
@@ -31,6 +32,7 @@ interface SessionDb {
   tick: number;
   status: SessionRow['status'];
   agent_name: string | null;
+  owner_hash: string;
   snapshot: string;
   version: number;
   created_at: string;
@@ -56,6 +58,7 @@ const toRun = (r: RunDb): RunRow => ({
   rootPayload: r.root_payload,
   actions: r.actions,
   outcomeHash: r.outcome_hash,
+  ownerHash: r.owner_hash,
   createdAt: r.created_at,
 });
 
@@ -78,6 +81,7 @@ const fromRun = (r: RunRow): RunDb => ({
   root_payload: r.rootPayload,
   actions: r.actions,
   outcome_hash: r.outcomeHash,
+  owner_hash: r.ownerHash,
   created_at: r.createdAt,
 });
 
@@ -89,6 +93,7 @@ const toSession = (s: SessionDb): SessionRow => ({
   tick: s.tick,
   status: s.status,
   agentName: s.agent_name,
+  ownerHash: s.owner_hash,
   snapshot: s.snapshot,
   version: s.version,
   createdAt: s.created_at,
@@ -107,7 +112,7 @@ function sessionPatch(p: Partial<SessionRow>): Partial<SessionDb> {
 }
 
 const RUN_COLUMNS =
-  'id,board,mode,seed,day,sim_version,player_kind,name,score,waves,shipped,intercepts,infected,ended_by,duration_ticks,root_payload,actions,outcome_hash,created_at';
+  'id,board,mode,seed,day,sim_version,player_kind,name,score,waves,shipped,intercepts,infected,ended_by,duration_ticks,root_payload,actions,outcome_hash,owner_hash,created_at';
 
 /** Postgres via Supabase, used with the service-role key on the server only. */
 export class SupabaseRepo implements Repo {
@@ -168,6 +173,7 @@ export class SupabaseRepo implements Repo {
         tick: row.tick,
         status: row.status,
         agent_name: row.agentName,
+        owner_hash: row.ownerHash,
         snapshot: row.snapshot,
         version: row.version,
         created_at: row.createdAt,
@@ -191,6 +197,14 @@ export class SupabaseRepo implements Repo {
         .select('id'),
     );
     return (rows as unknown[]).length === 1;
+  }
+
+  async claimName(name: string, ownerHash: string): Promise<'ok' | 'taken'> {
+    const key = name.toLowerCase();
+    const ins = await this.db.from('names').upsert({ name_key: key, owner_hash: ownerHash }, { onConflict: 'name_key', ignoreDuplicates: true });
+    if (ins.error) throw new Error(`database: ${ins.error.message}`);
+    const row = this.check(await this.db.from('names').select('owner_hash').eq('name_key', key).single());
+    return (row as { owner_hash: string }).owner_hash === ownerHash ? 'ok' : 'taken';
   }
 
   async bumpRate(key: string, windowStart: number, limit: number): Promise<boolean> {

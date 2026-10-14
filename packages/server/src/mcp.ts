@@ -40,6 +40,7 @@ export function createBlastMcp(d: Deps): (req: Request) => Promise<Response> {
             inputSchema: z.object({
               mode: z.enum(['daily', 'endless']).optional().describe('daily (ranked, default) or endless (practice).'),
               name: z.string().max(40).optional().describe('Name to show on the agents board.'),
+              key: z.string().min(8).max(128).optional().describe('A secret of yours; reuse it to keep your name across runs.'),
             }),
           },
           async (args) => toTool(await startRun(d, ip, args)),

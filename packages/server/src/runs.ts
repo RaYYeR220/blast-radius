@@ -49,8 +49,22 @@ function sameString(a: string, b: string): boolean {
  * (a no-op, a cut on an empty link) leaves these numbers alone, so it cannot
  * put the same game on the board twice.
  */
-export function outcomeHashOf(seed: string, s: RunSummary): Promise<string> {
-  return sha256([seed, s.score, s.durationTicks, s.shipped, s.intercepts, s.infected, s.wave, s.endedBy].join('|'));
+export function outcomeHashOf(seed: string, ownerHash: string, s: RunSummary): Promise<string> {
+  return sha256([seed, ownerHash, s.score, s.durationTicks, s.shipped, s.intercepts, s.infected, s.wave, s.endedBy].join('|'));
+}
+
+const OWNER = /^[\w-]{16,128}$/;
+
+/** Hashes a client-held key so the store never sees it. */
+export function ownerHashOf(salt: string, scope: string, key: string): Promise<string> {
+  return sha256(salt + '|' + scope + '|' + key);
+}
+
+/** Gives the run its display name: an anonymous tag, or a name this owner holds. */
+export async function nameFor(d: Deps, raw: unknown, ownerHash: string, tag: string): Promise<string | null> {
+  const name = cleanName(typeof raw === 'string' ? raw : '', tag);
+  if (name.startsWith('anon-')) return name;
+  return (await d.repo.claimName(name, ownerHash)) === 'ok' ? name : null;
 }
 
 /** Endless seeds are handed out by the server, so nobody ranks a seed they picked by hand. */
@@ -86,7 +100,7 @@ export function dailyAllowed(seed: string, now: number): boolean {
   return sinceMidnight < GRACE_MS && seed === `daily-${isoDay(now - DAY_MS)}`;
 }
 
-function parseSubmission(raw: string): { replay: Replay; score: number; name: string; token: unknown } | null {
+function parseSubmission(raw: string): { replay: Replay; score: number; name: string; token: unknown; owner: string } | null {
   let b: unknown;
   try {
     b = JSON.parse(raw);
@@ -94,12 +108,13 @@ function parseSubmission(raw: string): { replay: Replay; score: number; name: st
     return null;
   }
   if (!b || typeof b !== 'object') return null;
-  const { replay, score, name, token } = b as { replay?: Replay; score?: unknown; name?: unknown; token?: unknown };
+  const { replay, score, name, token, owner } = b as { replay?: Replay; score?: unknown; name?: unknown; token?: unknown; owner?: unknown };
+  if (typeof owner !== 'string' || !OWNER.test(owner)) return null;
   if (!replay || typeof replay !== 'object' || !Array.isArray(replay.actions)) return null;
   if (typeof replay.seed !== 'string' || !SEED.test(replay.seed)) return null;
   if (replay.mode !== 'endless' && replay.mode !== 'daily') return null;
   if (typeof score !== 'number' || !Number.isInteger(score)) return null;
-  return { replay, score, name: typeof name === 'string' ? name : '', token };
+  return { replay, score, name: typeof name === 'string' ? name : '', token, owner };
 }
 
 /** Verifies a finished run by re-simulating it, then records it on its board. */
@@ -114,9 +129,12 @@ export async function submitRun(d: Deps, ip: string, raw: string): Promise<ApiRe
   const canonical: Replay = { ...replay, actions: canonicalActions(replay.actions) };
   const verdict = verifyReplay(canonical, { score: sub.score });
   if (!verdict.ok) return fail(422, verdict.reason);
-  const outcomeHash = await outcomeHashOf(replay.seed, verdict.summary);
+  const ownerHash = await ownerHashOf(d.salt, 'device', sub.owner);
+  const outcomeHash = await outcomeHashOf(replay.seed, ownerHash, verdict.summary);
   if (await d.repo.seen(outcomeHash, replay.mode === 'endless' ? replay.seed : null)) return fail(409, 'already on the board');
   const id = crypto.randomUUID();
+  const name = await nameFor(d, sub.name, ownerHash, id.slice(0, 4));
+  if (!name) return fail(409, 'that name belongs to someone else; pick another');
   const board = replay.mode as Extract<Board, 'daily' | 'endless'>; // checked in parseSubmission
   const day = board === 'daily' ? replay.seed.slice('daily-'.length) : null;
   const createdAt = new Date(d.now()).toISOString();
@@ -129,7 +147,7 @@ export async function submitRun(d: Deps, ip: string, raw: string): Promise<ApiRe
     day,
     simVersion: SIM_VERSION,
     playerKind: 'human',
-    name: cleanName(sub.name, id.slice(0, 4)),
+    name,
     score: s.score,
     waves: s.wave,
     shipped: s.shipped,
@@ -140,6 +158,7 @@ export async function submitRun(d: Deps, ip: string, raw: string): Promise<ApiRe
     rootPayload: s.rootPayload,
     actions: canonical.actions,
     outcomeHash,
+    ownerHash,
     createdAt,
   };
   if ((await d.repo.insertRun(row)) === 'duplicate') return fail(409, 'already on the board');

@@ -76,7 +76,7 @@ describe('racing human submissions', () => {
     // both requests see "not on the board yet", as they would under a real race
     d.repo.seen = async (...args) => (calls++ < 2 ? false : seen(...args));
     const { replay, score } = playToEnd('daily-2026-10-15', 'daily', 'sloppy');
-    const body = JSON.stringify({ replay, score });
+    const body = JSON.stringify({ replay, score, owner: 'test-device-000000000000' });
     const [a, b] = await Promise.all([submitRun(d, '1.1.1.1', body), submitRun(d, '2.2.2.2', body)]);
     expect([a.status, b.status].sort()).toEqual([200, 409]);
     expect(d.repo.runs).toHaveLength(1);

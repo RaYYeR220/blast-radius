@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { issueSeed, submitRun } from '../src/runs';
 import { deps, playToEnd } from './helpers';
 
-const body = (o: object) => JSON.stringify(o);
+const body = (o: object) => JSON.stringify({ owner: 'test-device-000000000000', ...o });
 
 describe('leaderboard integrity', () => {
   it('refuses the same replay twice', async () => {

@@ -12,7 +12,7 @@ import {
 } from '@blast/sim';
 import { cleanName } from './names';
 import type { SessionRow } from './repo';
-import { type ApiResult, type Deps, limited, outcomeHashOf } from './runs';
+import { type ApiResult, type Deps, limited, nameFor, outcomeHashOf, ownerHashOf } from './runs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_ACTIONS = 20;
@@ -45,7 +45,7 @@ async function load(d: Deps, run: unknown): Promise<SessionRow | ApiResult> {
 
 const isResult = (x: SessionRow | ApiResult): x is ApiResult => 'body' in x;
 
-export async function startRun(d: Deps, ip: string, body: { mode?: unknown; name?: unknown }): Promise<ApiResult> {
+export async function startRun(d: Deps, ip: string, body: { mode?: unknown; name?: unknown; key?: unknown }): Promise<ApiResult> {
   if (await limited(d, ip, 'agent-start', 60)) return fail(429, 'slow down');
   const mode = body.mode === 'endless' ? 'endless' : 'daily';
   const id = crypto.randomUUID();
@@ -59,6 +59,8 @@ export async function startRun(d: Deps, ip: string, body: { mode?: unknown; name
     tick: 0,
     status: 'live',
     agentName: typeof body.name === 'string' ? cleanName(body.name, id.slice(0, 4)) : null,
+    // with a key an agent keeps its name across runs; without one the name is tied to this run
+    ownerHash: await ownerHashOf(d.salt, 'agent', typeof body.key === 'string' && body.key.length >= 8 ? body.key : `run-${id}`),
     snapshot: '',
     version: 0,
     createdAt: now,
@@ -154,13 +156,16 @@ export async function submitAgentRun(d: Deps, ip: string, body: { run?: unknown;
     await release();
     return fail(422, verdict.reason);
   }
-  const outcomeHash = await outcomeHashOf(row.seed, verdict.summary);
+  const outcomeHash = await outcomeHashOf(row.seed, row.ownerHash, verdict.summary);
   if (await d.repo.seen(outcomeHash, null)) return fail(409, 'this exact run is already on the board');
   const id = crypto.randomUUID();
   const createdAt = new Date(d.now()).toISOString();
   const s = verdict.summary;
-  const name =
-    typeof body.name === 'string' ? cleanName(body.name, id.slice(0, 4)) : (row.agentName ?? `agent-${id.slice(0, 4)}`);
+  const name = await nameFor(d, typeof body.name === 'string' ? body.name : row.agentName, row.ownerHash, id.slice(0, 4));
+  if (!name) {
+    await release();
+    return fail(409, 'that name belongs to someone else; pass your key or pick another');
+  }
   const day = row.seed.slice('daily-'.length);
   const inserted = await d.repo.insertRun({
     id,
@@ -181,6 +186,7 @@ export async function submitAgentRun(d: Deps, ip: string, body: { run?: unknown;
     rootPayload: s.rootPayload,
     actions: row.actions,
     outcomeHash,
+    ownerHash: row.ownerHash,
     createdAt,
   });
   if (inserted === 'duplicate') return fail(409, 'this exact run is already on the board');

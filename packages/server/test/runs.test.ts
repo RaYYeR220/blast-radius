@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { type Deps, getRun, issueSeed, leaderboard, submitRun } from '../src/runs';
 import { deps, playToEnd } from './helpers';
 
-const body = (o: object) => JSON.stringify(o);
+const body = (o: object) => JSON.stringify({ owner: 'test-device-000000000000', ...o });
 
 /** An endless run on a seed the server issued, ready to submit. */
 async function endless(d: Deps, bot: 'idle' | 'sloppy' = 'idle') {
