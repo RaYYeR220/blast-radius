@@ -36,7 +36,7 @@ export function toNode(handler: WebHandler) {
         }
         body = read;
       }
-      const response = await handler(new Request(url, { method, headers, body }));
+      const response = await handler(new Request(url, { method, headers, body: body ? new Uint8Array(body) : undefined }));
       const out: Record<string, string | string[]> = {};
       response.headers.forEach((v, k) => {
         out[k] = k === 'set-cookie' ? response.headers.getSetCookie() : v;
