@@ -12,7 +12,7 @@ const MARKUP = `
       <button class="btn neu round sm" type="button" data-act="close" aria-label="Close (Esc)">${CLOSE_ICON}</button>
     </div>
     <div class="arch-count"><b data-count>0</b><span class="mono" data-sub></span></div>
-    <div class="arch-bar" aria-hidden="true"><i data-bar></i></div>
+    <div class="arch-bar" aria-hidden="true"><i data-progress></i></div>
     <div data-list></div>
     <div class="lb-foot"><span class="mono">stop an injection to log its text · a leak logs the one that got out</span><button class="btn ink" type="button" data-act="play"><span class="dot"></span>Play</button></div>
   </div>
@@ -41,7 +41,7 @@ export class ArchiveScreen {
       .sort((a, b) => b.firstSeen.localeCompare(a.firstSeen) || a.n - b.n);
     q(this.root, '[data-count]').innerHTML = `${entries.length}<small> of ${total}</small>`;
     q(this.root, '[data-sub]').textContent = entries.length === total ? 'every injection logged' : `${total - entries.length} still out there`;
-    q(this.root, '[data-bar]').style.width = `${(entries.length / total) * 100}%`;
+    q(this.root, '[data-progress]').style.width = `${(entries.length / total) * 100}%`;
     q(this.root, '[data-list]').innerHTML = entries.length
       ? `<ol class="arch">${entries
           .map((e) => `<li><span class="n">#${e.n}</span><div><q>${esc(INJECTIONS[e.n] ?? '')}</q><span class="mono">first logged ${esc(shortDay(e.firstSeen))} · wave ${Number(e.wave)}</span></div></li>`)
