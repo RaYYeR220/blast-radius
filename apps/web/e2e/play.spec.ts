@@ -10,11 +10,12 @@ declare global {
   }
 }
 
+/** Collects page errors. The preview server has no API behind it, so failed /api/ calls are expected. */
 function watchErrors(page: Page): string[] {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => {
-    if (m.type() === 'error') errors.push(m.text());
+    if (m.type() === 'error' && !m.location().url.includes('/api/')) errors.push(m.text());
   });
   page.on('requestfailed', (r) => {
     if (!r.url().includes('/api/')) errors.push(`request failed: ${r.url()}`);
