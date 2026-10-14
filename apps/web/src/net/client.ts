@@ -49,8 +49,10 @@ export class Api {
     const timer = setTimeout(() => ctl.abort(), this.timeoutMs);
     try {
       const res = await this.f(`${this.base}${path}`, { ...init, signal: ctl.signal });
-      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-      if (!res.ok) return { ok: false, status: res.status, error: String(body.error ?? 'request failed') };
+      const body = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+      if (!res.ok) return { ok: false, status: res.status, error: String(body?.error ?? 'request failed') };
+      // a 200 that is not JSON is a static host without the API behind it
+      if (!body || typeof body !== 'object') return { ok: false, offline: true };
       return { ok: true, ...(body as T) };
     } catch {
       return { ok: false, offline: true };

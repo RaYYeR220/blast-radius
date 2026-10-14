@@ -21,6 +21,15 @@ export interface Saved {
   archive: Record<number, { firstSeen: string; wave: number }>;
   trails: string[];
   stats: { runs: number; intercepts: number; shipped: number };
+  /** This device's best ranked run per human board, so the board can show where you stand. */
+  mine: Partial<Record<'daily' | 'endless', MyRun>>;
+}
+
+export interface MyRun {
+  id: string;
+  score: number;
+  /** UTC day of a daily run; '' for endless. */
+  day: string;
 }
 
 export const DEFAULTS: Saved = {
@@ -31,6 +40,7 @@ export const DEFAULTS: Saved = {
   archive: {},
   trails: ['plain'],
   stats: { runs: 0, intercepts: 0, shipped: 0 },
+  mine: {},
 };
 
 const KEY = 'blast-radius';
@@ -74,6 +84,7 @@ export class Store {
         best: { ...base.best, ...parsed.best, daily: { ...parsed.best?.daily } },
         stats: { ...base.stats, ...parsed.stats },
         archive: { ...parsed.archive },
+        mine: { ...parsed.mine },
         trails: Array.isArray(parsed.trails) ? parsed.trails : base.trails,
         v: 1,
       };
