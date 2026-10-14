@@ -7,6 +7,7 @@ import {
   VARIANTS,
   VARIANT_UNLOCK,
   injectChance,
+  webEmitTicks,
 } from './constants';
 import { endGame } from './end';
 import { newPacket } from './packets';
@@ -128,6 +129,14 @@ export function onArrive(s: GameState, p: Packet, node: number): void {
 
 /** Incubation timers and emission from infected agents. Runs before movement. */
 export function infectionTick(s: GameState, quarantine: (s: GameState, id: number, auto: boolean) => void): void {
+  const every = webEmitTicks(s.wave);
+  if (every > 0) {
+    if (s.nextWebEmitAt <= s.waveStart) s.nextWebEmitAt = s.waveStart + every;
+    if (s.tick >= s.nextWebEmitAt) {
+      spawnInject(s, s.web, variantFor(s));
+      s.nextWebEmitAt = s.tick + every;
+    }
+  }
   for (const n of s.nodes) {
     if (!n.active || n.kind !== 'agent') continue;
     if (n.infection === 1 && s.tick >= n.incubateUntil) {

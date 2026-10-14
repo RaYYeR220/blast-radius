@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  INJECT_SPEED_MULT,
   PACKET_SPEED,
   RATE_LIMIT_MULT,
   ROLLBACK_COOLDOWN,
@@ -62,7 +63,7 @@ describe('upgrade effects', () => {
     step(s, []);
     const before = p.progress;
     step(s, []);
-    expect(p.progress - before).toBeCloseTo((PACKET_SPEED * RATE_LIMIT_MULT) / 300, 10);
+    expect(p.progress - before).toBeCloseTo((PACKET_SPEED * INJECT_SPEED_MULT * RATE_LIMIT_MULT) / 300, 10);
   });
 
   it('fast heal shortens a cut', () => {

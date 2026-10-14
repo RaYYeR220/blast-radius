@@ -80,6 +80,8 @@ export function createEmptyState(o: GameOptions): GameState {
     stallTicks: 0,
     canaries: 0,
     rollbackReadyAt: 0,
+    nextWebEmitAt: 0,
+    waveQuarantines: 0,
     tutorialDone: false,
     up: { ...NO_UPGRADES },
     offers: [],

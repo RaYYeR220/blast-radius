@@ -63,6 +63,7 @@ describe('injection', () => {
 
   it('lets a sleeper incubate for 360 ticks', () => {
     const s = chain();
+    s.canaries = 99; // keep the run alive past the long incubation
     spawnInject(s, s.web, 'sleeper');
     const ev = run(s, 900);
     const inc = ev.find((e) => e.e === 'incubate' && e.node === 3)!;

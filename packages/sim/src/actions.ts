@@ -3,6 +3,7 @@ import {
   BLADE_HALF_WIDE,
   QUARANTINE_COST,
   QUARANTINE_COST_SANDBOX,
+  QUARANTINE_COST_STEP,
   QUARANTINE_TICKS,
   QUARANTINE_TICKS_SANDBOX,
   SEVER_TICKS,
@@ -16,8 +17,9 @@ function reject(s: GameState, action: Action, reason: string): false {
   return false;
 }
 
+/** The price of the next quarantine: it climbs with each use in the same wave. */
 export function quarantineCost(s: GameState): number {
-  return s.up.sandbox ? QUARANTINE_COST_SANDBOX : QUARANTINE_COST;
+  return (s.up.sandbox ? QUARANTINE_COST_SANDBOX : QUARANTINE_COST) + QUARANTINE_COST_STEP * s.waveQuarantines;
 }
 
 export function bladeHalf(s: GameState): number {
@@ -62,6 +64,7 @@ function quarantine(s: GameState, a: Extract<Action, { type: 'quarantine' }>): b
   const cost = quarantineCost(s);
   if (s.credits < cost) return reject(s, a, 'not enough credits');
   s.credits -= cost;
+  s.waveQuarantines++;
   quarantineNode(s, n.id, false);
   return true;
 }

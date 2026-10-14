@@ -195,7 +195,8 @@ describe('deny-all through real cuts', () => {
     const ev: SimEvent[] = [];
     for (let i = 0; i < 8000 && s.phase === 'play'; i++) {
       const cuts: Action[] = s.edges
-        .filter((e) => !e.removed && e.severedUntil <= s.tick && (e.a === s.user || e.b === s.user))
+        .filter((e) => !e.removed && e.severedUntil <= s.tick)
+        .filter((e) => e.a === s.user || e.b === s.user || e.a === s.web || e.b === s.web)
         .map((e) => ({ type: 'cut', edge: e.id, t: 500 }));
       ev.push(...step(s, cuts));
     }

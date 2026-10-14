@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SCORE_LOST } from '../src/constants';
+import { CAPACITY_BASE, CAPACITY_PER_AGENT, SCORE_LOST } from '../src/constants';
 import { backlog, capacity } from '../src/packets';
 import { Rng } from '../src/rng';
 import { createGame, step } from '../src/step';
@@ -13,6 +13,7 @@ function line(): GameState {
     [[0, 1], [1, 2], [2, 3], [3, 4]],
   );
   s.spawnAcc = -1e9; // no background traffic in unit tests
+  s.tutorialDone = true;
   return s;
 }
 
@@ -50,6 +51,7 @@ describe('task flow', () => {
     s.spawned = 1;
     s.forceJob = 'research';
     s.forceAgent = 1;
+    s.rng.chance = () => false; // this page is clean
     const visits: number[] = [];
     let last = -1;
     for (let i = 0; i < 2000 && s.shipped === 0; i++) {
@@ -122,7 +124,7 @@ describe('task flow', () => {
 describe('backlog and stall', () => {
   it('measures capacity from the active agents', () => {
     const s = createGame({ seed: 'cap', mode: 'endless' });
-    expect(capacity(s)).toBe(18); // floor(12 + 1.5 * 4)
+    expect(capacity(s)).toBe(Math.floor(CAPACITY_BASE + CAPACITY_PER_AGENT * 4));
   });
 
   it('counts queued and live tasks as backlog', () => {
@@ -133,6 +135,7 @@ describe('backlog and stall', () => {
 
   it('stalls once the backlog has stayed over capacity long enough', () => {
     const s = createGame({ seed: 'stall', mode: 'endless' });
+    s.tutorialDone = true;
     const userEdges = s.edges.filter((e) => e.a === s.user || e.b === s.user);
     let overSince = -1;
     for (let i = 0; i < 6000 && s.phase === 'play'; i++) {

@@ -21,6 +21,8 @@ export const SPECIAL_MIN_DIST = 600;
 // Movement
 export const PACKET_SPEED = 2.4;
 export const FAST_MULT = 1.8;
+/** Injected packets travel a little faster than ordinary work. */
+export const INJECT_SPEED_MULT = 1.2;
 export const RATE_LIMIT_MULT = 0.6;
 export const PROCESS_TICKS = 36;
 export const REROUTE_TICKS = 10;
@@ -39,19 +41,21 @@ export const QUARANTINE_TICKS = 300;
 export const QUARANTINE_TICKS_SANDBOX = 180;
 export const QUARANTINE_COST = 4;
 export const QUARANTINE_COST_SANDBOX = 2;
+/** Each quarantine in the same wave costs this much more; resets every wave. */
+export const QUARANTINE_COST_STEP = 2;
 export const REROLL_COST = 3;
 
 // Infection
-export const INCUBATION_TICKS = 90;
+export const INCUBATION_TICKS = 60;
 export const SLEEPER_INCUBATION_TICKS = 360;
-export const EMIT_TICKS = 240;
+export const EMIT_TICKS = 180;
 export const ROLLBACK_DELAY = 180;
 export const ROLLBACK_COOLDOWN = 900;
 
 // Failure
 export const STALL_TICKS = 300;
 export const CAPACITY_BASE = 12;
-export const CAPACITY_PER_AGENT = 1.5;
+export const CAPACITY_PER_AGENT = 2.25;
 export const MAX_RUN_TICKS = 216_000;
 
 // Scoring
@@ -62,7 +66,9 @@ export const SCORE_CLEAN_WAVE = 200;
 export const SCORE_LOST = -5;
 
 export const taskRate = (wave: number): number => 0.9 + 0.25 * wave;
-export const injectChance = (wave: number): number => Math.min(0.1 + 0.05 * wave, 0.45);
+export const injectChance = (wave: number): number => Math.min(0.15 + 0.08 * wave, 0.7);
+/** From wave 2 the open web pushes poisoned content on its own, faster each wave (0 = never). */
+export const webEmitTicks = (wave: number): number => (wave < 2 ? 0 : Math.max(420 - 45 * wave, 75));
 
 export const VARIANT_UNLOCK: Readonly<Record<Variant, number>> = {
   plain: 1,

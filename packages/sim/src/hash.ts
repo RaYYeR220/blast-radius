@@ -4,7 +4,7 @@ import type { GameState } from './types';
 export function stateHash(s: GameState): string {
   const parts: Array<string | number | boolean> = [
     s.tick, s.phase, s.wave, s.waveStart, s.credits, s.score, s.queue, s.spawnAcc, s.stallTicks,
-    s.shipped, s.intercepts, s.lost, s.canaries, s.end ?? '-', ...s.rng.snapshot(),
+    s.shipped, s.intercepts, s.lost, s.canaries, s.nextWebEmitAt, s.waveQuarantines, s.end ?? '-', ...s.rng.snapshot(),
   ];
   for (const n of s.nodes) {
     parts.push(n.id, n.active, n.quarantinedUntil, n.infection, n.incubateUntil, n.nextEmitAt, n.payload, n.degree);

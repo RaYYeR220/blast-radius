@@ -3,6 +3,7 @@ import {
   CAPACITY_PER_AGENT,
   DISPATCH_TICKS,
   FAST_MULT,
+  INJECT_SPEED_MULT,
   JOB_MIX,
   JOB_MIX_LEAST_PRIV,
   PACKET_SPEED,
@@ -149,6 +150,7 @@ export function posFromA(s: GameState, p: Packet): number {
 function speedOn(s: GameState, p: Packet): number {
   const e = s.edges[p.edge]!;
   let v = PACKET_SPEED;
+  if (p.kind === 'inject') v *= INJECT_SPEED_MULT;
   if (p.variant === 'fast') v *= FAST_MULT;
   if (s.up.rateLimit && (e.a === s.vault || e.b === s.vault)) v *= RATE_LIMIT_MULT;
   return v;

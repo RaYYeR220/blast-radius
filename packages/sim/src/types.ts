@@ -159,6 +159,8 @@ export interface GameState {
   stallTicks: number;
   canaries: number;
   rollbackReadyAt: number;
+  nextWebEmitAt: number;
+  waveQuarantines: number;
   tutorialDone: boolean;
   up: Record<UpgradeId, boolean>;
   offers: Offer[];

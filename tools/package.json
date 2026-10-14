@@ -1,0 +1,14 @@
+{
+  "name": "@blast/tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "balance": "tsx balance.ts"
+  },
+  "dependencies": {
+    "@blast/sim": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.0"
+  }
+}

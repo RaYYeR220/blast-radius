@@ -17,6 +17,7 @@ export function startNextWave(s: GameState): void {
   growWave(s);
   addPeerEdges(s, s.wave >= 3 ? 1 + s.rng.int(2) : 0);
   s.waveInfections = 0;
+  s.waveQuarantines = 0;
   s.offers = [];
   s.phase = 'play';
   s.events.push({ tick: s.tick, e: 'wave', wave: s.wave });
