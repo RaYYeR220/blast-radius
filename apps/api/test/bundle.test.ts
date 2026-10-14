@@ -27,7 +27,7 @@ describe('Vercel build output', () => {
   it('writes a v3 config and one function per route', () => {
     const config = JSON.parse(readFileSync(resolve(OUT, 'config.json'), 'utf8'));
     expect(config.version).toBe(3);
-    for (const name of ['runs', 'seed', 'leaderboard', 'run', 'agent', 'mcp']) {
+    for (const name of ['runs', 'seed', 'leaderboard', 'run', 'agent', 'mcp', 'share', 'og']) {
       expect(existsSync(resolve(fn(name), 'index.mjs'))).toBe(true);
       const vc = JSON.parse(readFileSync(resolve(fn(name), '.vc-config.json'), 'utf8'));
       expect(vc.launcherType).toBe('Nodejs');
@@ -74,5 +74,30 @@ describe('Vercel build output', () => {
       { env: { ...process.env, BLAST_MEMORY_STORE: '', SUPABASE_URL: '', SUPABASE_SERVICE_ROLE_KEY: '' } },
     ).toString();
     expect(out.trim()).toBe('503');
+  });
+});
+
+describe('share card bundle', () => {
+  it('renders a PNG when built the way production builds it', async () => {
+    const { build } = await import('esbuild');
+    const { mkdtempSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = mkdtempSync(join(tmpdir(), 'og-'));
+    const out = join(dir, 'card.mjs');
+    await build({
+      entryPoints: [resolve(__dirname, '../src/og/card.ts')],
+      bundle: true,
+      platform: 'node',
+      format: 'esm',
+      target: 'node22',
+      outfile: out,
+      loader: { '.wasm': 'binary', '.woff': 'binary' },
+      banner: { js: "import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);" },
+      logLevel: 'silent',
+    });
+    const { renderCard } = (await import(pathToFileURL(out).href)) as typeof import('../src/og/card');
+    const png = await renderCard({ name: 'bundle', replay: { v: 1, mode: 'daily', seed: 'daily-2026-10-15', actions: [] } });
+    expect([...png.slice(0, 4)]).toEqual([137, 80, 78, 71]);
   });
 });

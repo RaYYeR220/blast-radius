@@ -8,7 +8,9 @@ import { build } from 'esbuild';
 const here = dirname(fileURLToPath(import.meta.url));
 const out = resolve(here, '../../.vercel/output');
 const web = resolve(here, '../web/dist');
-const ROUTES = ['runs', 'seed', 'leaderboard', 'run', 'agent', 'mcp', 'share'];
+const ROUTES = ['runs', 'seed', 'leaderboard', 'run', 'agent', 'mcp', 'share', 'og'];
+/** Binary assets (the PNG renderer's wasm, card fonts) travel inside the bundle as bytes. */
+export const LOADERS = { '.wasm': 'binary', '.woff': 'binary' };
 
 rmSync(out, { recursive: true, force: true });
 mkdirSync(resolve(out, 'static'), { recursive: true });
@@ -36,6 +38,7 @@ for (const route of ROUTES) {
     minify: true,
     // some dependencies still call require() for Node built-ins
     banner: { js: "import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);" },
+    loader: LOADERS,
     logLevel: 'warning',
   });
   writeFileSync(
