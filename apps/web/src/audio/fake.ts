@@ -33,6 +33,7 @@ export class FakeContext {
   sources = 0;
   gains: Array<{ gain: FakeParam }> = [];
   resume() { this.state = 'running'; return Promise.resolve(); }
+  suspend() { this.state = 'suspended'; return Promise.resolve(); }
   createGain() { const g = Object.assign(new FakeNode(), { gain: new FakeParam() }); g.gain.value = 1; this.gains.push(g); return g; }
   createOscillator() { const o = new FakeOsc(); this.oscillators.push(o); return o; }
   createBiquadFilter() { return Object.assign(new FakeNode(), { type: 'lowpass', frequency: new FakeParam(), Q: new FakeParam() }); }

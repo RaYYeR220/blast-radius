@@ -51,6 +51,13 @@ export class AudioEngine {
     if (this.ctx.state !== 'running') void this.ctx.resume();
   }
 
+  /** A hidden tab goes quiet: the context suspends, and the music's clock stops with it. */
+  setHidden(hidden: boolean): void {
+    if (!this.ctx) return;
+    if (hidden) void this.ctx.suspend();
+    else if (this.ctx.state !== 'running') void this.ctx.resume();
+  }
+
   setMuted(m: boolean): void {
     this.muted = m;
     if (this.master && this.ctx) this.master.gain.setTargetAtTime(m ? 0 : MASTER, this.ctx.currentTime, 0.02);

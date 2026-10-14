@@ -109,7 +109,9 @@ export class App implements KeyTarget, UiHost {
     addEventListener('keydown', (e) => onKeyDown(this, e));
     addEventListener('keyup', (e) => onKeyUp(this, e));
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && this.loop.paused && !this.ui.pause.open) this.loop.resume();
+      const visible = document.visibilityState === 'visible';
+      this.audio.setHidden(!visible);
+      if (visible && this.loop.paused && !this.ui.pause.open) this.loop.resume();
     });
     this.systemReduced.addEventListener('change', () => this.applySettings());
     for (const b of qa(document, '[data-mute]')) {

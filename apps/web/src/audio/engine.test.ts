@@ -21,6 +21,17 @@ describe('AudioEngine', () => {
     expect(ctx.oscillators.length).toBeGreaterThan(0);
   });
 
+  it('falls silent while the tab is hidden and comes back with it', () => {
+    const { ctx, engine } = make();
+    engine.setHidden(false);
+    expect(ctx.state).toBe('suspended'); // nothing starts before the first gesture
+    engine.unlock();
+    engine.setHidden(true);
+    expect(ctx.state).toBe('suspended');
+    engine.setHidden(false);
+    expect(ctx.state).toBe('running');
+  });
+
   it('mutes through the master gain', () => {
     const { engine } = make();
     engine.unlock();
