@@ -49,7 +49,7 @@ describe('swipeToCuts', () => {
     const st = s();
     st.edges[0]!.severedUntil = 100;
     const cuts = swipeToCuts(st, { x: 200, y: 400 }, { x: 1000, y: 400 }, new Set());
-    expect(cuts.map((c) => c.edge)).toEqual([1]);
+    expect(cuts.map((c) => (c.type === 'cut' ? c.edge : -1))).toEqual([1]);
   });
 });
 
