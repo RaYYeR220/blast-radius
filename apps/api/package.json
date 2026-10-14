@@ -10,7 +10,9 @@
   "dependencies": {
     "@blast/server": "workspace:*",
     "@blast/sim": "workspace:*",
-    "@fontsource/space-mono": "5",
+    "@fontsource/fragment-mono": "5",
+    "@fontsource/instrument-serif": "5",
+    "@fontsource/outfit": "5",
     "@resvg/resvg-wasm": "2.6.2",
     "satori": "0.57.2"
   },
