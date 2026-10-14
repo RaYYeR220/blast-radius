@@ -21,6 +21,13 @@ describe('Api', () => {
     expect(await api.board('daily')).toEqual({ ok: false, offline: true });
   });
 
+  it('treats a page that is not JSON as offline (a static host with no API)', async () => {
+    const html = () => Promise.resolve(new Response('<!doctype html><title>Blast Radius</title>', { status: 200 }));
+    const api = new Api({ fetch: html as never, base: '', owner: () => 'k'.repeat(24) });
+    expect(await api.board('daily')).toEqual({ ok: false, offline: true });
+    expect(await api.seed()).toEqual({ ok: false, offline: true });
+  });
+
   it('times out a hung request', async () => {
     vi.useFakeTimers();
     const api = new Api({

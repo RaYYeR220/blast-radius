@@ -1,0 +1,75 @@
+/* HUD */
+.hud-top{position:absolute;left:50%;top:calc(20px + var(--st));transform:translateX(-50%);display:flex;gap:8px;align-items:center}
+.pill{background:var(--card);box-shadow:var(--neu);border-radius:var(--pill);display:inline-flex;align-items:baseline;gap:10px;padding:10px 20px;white-space:nowrap;transition:background-color .25s}
+.pill .k{font-size:12px;color:var(--ink2);font-weight:500}
+.pill .v{font:600 28px/1 var(--display);letter-spacing:-.04em;font-variant-numeric:tabular-nums;min-width:1ch}
+.pill.main .v{font-size:36px}
+.pill .sub{font-family:var(--mono);font-size:11px;color:var(--ink3);display:inline-flex;align-items:center;gap:6px}
+.pill .sub i{width:6px;height:6px;border-radius:50%;background:var(--ink3)}
+.pill .sub.ready{color:var(--ink)} .pill .sub.ready i{background:var(--threat)}
+.pill.deny{animation:deny .45s cubic-bezier(.36,.07,.19,.97);background:#f6d9c6}
+@keyframes deny{20%{transform:translateX(-5px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
+.pill.canary .v{font-size:22px}
+.pill .v.bump{animation:bump .32s var(--ease)}
+@keyframes bump{30%{transform:scale(1.14);color:var(--threat)}}
+.hud-ctl{position:absolute;right:24px;top:calc(20px + var(--st));display:flex;gap:8px}
+.hud-tag{position:absolute;left:28px;top:calc(30px + var(--st));display:flex;flex-direction:column;gap:6px;max-width:30vw}
+.hud-tag .ups{display:flex;flex-wrap:wrap;gap:6px}
+.hud-tag .ups span{font-family:var(--mono);font-size:11px;color:var(--ink2);padding:4px 9px;border-radius:var(--pill);box-shadow:inset 0 0 0 1px var(--hair)}
+.back{position:absolute;left:50%;bottom:calc(20px + var(--sb));transform:translateX(-50%);width:min(560px,calc(100vw - 32px));padding:12px 22px;display:flex;align-items:center;gap:16px}
+.back .bar{flex:1;height:8px;border-radius:var(--pill);background:var(--muted);position:relative;overflow:hidden;box-shadow:inset 0 1px 2px rgba(14,13,12,.14)}
+.back .bar i{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:var(--pill);background:var(--ink);transition:width .25s linear, background-color .25s}
+.back .bar b{position:absolute;top:0;bottom:0;width:2px;background:var(--ink);opacity:.8}
+.back .n{font-family:var(--mono);font-size:13px;color:var(--ink);font-variant-numeric:tabular-nums;min-width:5ch;text-align:right}
+.back .stall{display:none;font:600 15px/1 var(--display);color:var(--threat);letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.back.warn .bar i{background:var(--threat)}
+.back.over{background:#f5dccb}
+.back.over .bar i{animation:barpulse .5s ease-in-out infinite alternate}
+.back.stalling .stall{display:inline}
+.back.stalling{box-shadow:var(--neu), 0 0 0 2px var(--threat)}
+@keyframes barpulse{to{opacity:.55}}
+.toast{position:absolute;left:50%;top:calc(96px + var(--st));transform:translate(-50%,-6px);opacity:0;transition:opacity .35s, transform .5s var(--ease);display:flex;align-items:center;gap:12px;padding:8px 18px 8px 14px;background:var(--card);box-shadow:var(--neu);border-radius:var(--pill);white-space:nowrap}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast b{font:600 20px/1 var(--display);letter-spacing:-.03em}
+.toast span{font-size:13px;color:var(--ink2)}
+.toast svg{width:22px;height:22px}
+.stamp{position:absolute;left:50%;top:calc(92px + var(--st));transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:2px;pointer-events:none;text-align:center}
+.stamp .mono{font-size:11px;color:var(--deep);letter-spacing:.08em;text-transform:uppercase}
+.stamp b{font:600 64px/.9 var(--display);letter-spacing:-.05em;color:var(--threat);font-variant-numeric:tabular-nums;-webkit-text-stroke:0}
+.stamp.tick b{animation:tickp 1s steps(1) infinite}
+@keyframes tickp{50%{color:var(--deep)}}
+.stamp.end b{font-size:clamp(72px,9vw,120px);animation:slam .5s var(--ease) both}
+.stamp.end.stall b{color:var(--ink)}
+@keyframes slam{from{transform:scale(1.6);opacity:0}to{transform:none;opacity:1}}
+.pill.canary.zero{opacity:.55}
+/* Human in the Loop: the slow-down meter, shown only while the upgrade is owned */
+.hitl{position:absolute;left:50%;bottom:calc(84px + var(--sb));transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:6px 8px 6px 14px;border-radius:var(--pill);background:var(--card);box-shadow:var(--neu-s);font-family:var(--mono);font-size:11.5px;color:var(--ink2);white-space:nowrap;transition:box-shadow .2s, color .2s}
+.hitl .bar{width:88px;height:6px;border-radius:var(--pill);background:var(--muted);overflow:hidden;box-shadow:inset 0 1px 2px rgba(14,13,12,.14)}
+.hitl .bar i{display:block;height:100%;width:100%;border-radius:var(--pill);background:var(--ink);transform-origin:left center}
+.hitl kbd{opacity:.5}
+.hitl.on{color:var(--ink);box-shadow:var(--neu-s), inset 0 0 0 1px var(--ink)}
+.hitl.on .bar i{background:var(--threat)}
+.hitl.dry .bar i{background:var(--ink3)}
+
+@media (max-width:700px){
+  .hud-tag{display:none}
+  .hud-top{left:10px;right:10px;transform:none;top:calc(10px + var(--st));justify-content:space-between;gap:6px}
+  .pill{padding:8px 13px;gap:4px;flex-direction:column;align-items:flex-start;border-radius:var(--r-xl)}
+  .pill .v{font-size:23px}.pill.main .v{font-size:27px}
+  .pill.main{flex:1;align-items:center}
+  .pill .sub{font-size:10px}
+  .hud-top .pill.canary{position:absolute;left:0;top:calc(100% + 6px);flex-direction:row;align-items:baseline;gap:6px;padding:5px 11px;border-radius:var(--pill)}
+  .hud-top .pill.canary .k{font-size:11px}
+  .hud-top .pill.canary .v{font-size:15px}
+  .toast.show ~ .hud-top .pill.canary{opacity:0}
+  .hud-ctl{right:10px;top:auto;bottom:calc(12px + var(--sb));gap:6px}
+  .hud-ctl .round{width:50px;height:50px}
+  .back{left:10px;right:122px;transform:none;width:auto;bottom:calc(12px + var(--sb));padding:10px 16px;gap:10px;min-height:50px;flex-direction:row;align-items:center;border-radius:var(--pill)}
+  .back .k{display:none}
+  .back.stalling .n{display:none}
+  .toast{top:calc(86px + var(--st));padding:6px 14px 6px 10px}
+  .stamp{top:calc(84px + var(--st))}
+  .stamp b{font-size:48px}
+  .toast b{font-size:17px}
+  .hitl{bottom:calc(74px + var(--sb))}
+}

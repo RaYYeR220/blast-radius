@@ -14,6 +14,11 @@ export class SlowMo {
   private held = false;
   private exhausted = false;
 
+  /** Ran dry and is refilling before it works again. */
+  get dry(): boolean {
+    return this.exhausted;
+  }
+
   hold(on: boolean): void {
     this.held = on;
   }
