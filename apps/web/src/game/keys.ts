@@ -22,8 +22,16 @@ export interface KeyTarget {
   replayToggle(): void;
 }
 
-const typing = (t: EventTarget | null): boolean =>
-  t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || (t instanceof HTMLElement && t.isContentEditable);
+/** Inputs that take text. A focused slider or checkbox must not swallow the shortcuts. */
+const TEXT_INPUTS = new Set(['text', 'search', 'email', 'url', 'tel', 'password', 'number']);
+
+/** Is the key going into a text field? Then the game leaves it alone. */
+export function typing(t: EventTarget | null): boolean {
+  const el = t as { tagName?: string; type?: string; isContentEditable?: boolean } | null;
+  if (!el) return false;
+  if (el.tagName === 'TEXTAREA' || el.isContentEditable) return true;
+  return el.tagName === 'INPUT' && TEXT_INPUTS.has(el.type ?? 'text');
+}
 
 function playKey(t: KeyTarget, e: KeyboardEvent): void {
   const k = e.key;
