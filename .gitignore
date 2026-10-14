@@ -9,15 +9,6 @@ test-results/
 *.log
 .DS_Store
 # working material never ships
-BRIEF.md
-ALTERNATIVES.md
-.remember/
-MEMORY.md
-.claude/
-.agents/
-.superpowers/
-superpowers/
-docs/superpowers/
 *-internal/
 *-backup*
 *.bundle
