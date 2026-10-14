@@ -26,7 +26,7 @@
 .spark .lg i.cap{background:repeating-linear-gradient(90deg,var(--ink2) 0 3px,transparent 3px 5px)}
 .spark .lg i.inf{background:var(--threat);height:8px;opacity:.5}
 /* the way back in stays in reach, however long the report runs */
-.rp-acts{display:flex;flex-direction:column;gap:10px;margin:auto -40px 0;padding:6px 40px 30px;position:sticky;bottom:0;background:linear-gradient(rgba(241,240,238,0),rgba(241,240,238,.94) 14%)}
+.rp-acts{display:flex;flex-direction:column;gap:10px;margin:auto -40px 0;padding:6px 40px 30px;position:sticky;bottom:0;background:linear-gradient(rgba(241,240,238,0),rgba(241,240,238,.97) 16%)}
 .rp-acts .run{height:68px;font-size:22px;width:100%}
 .rp-acts .row{display:flex;gap:10px}
 .rp-acts .row .btn{flex:1;height:48px}
