@@ -3,15 +3,13 @@ import { type BotKind, makeBot } from '@blast/sim/bots';
 import { AudioEngine } from '../audio/engine';
 import { threatOf } from '../audio/threat';
 import { Api, deviceKey } from '../net/client';
-import { DriftRenderer, type Look } from '../render/drift/renderer';
-import { Chrome } from '../ui/chrome';
-import { nf, qa, shortDay } from '../ui/dom';
-import type { Toggle } from '../ui/pause';
+import type { Look } from '../render/drift/renderer';
+import { qa, shortDay } from '../ui/dom';
+import type { SlowMeter } from '../ui/hud';
 import { mountUi, type Ui, type UiHost } from '../ui/mount';
+import type { Toggle } from '../ui/pause';
 import type { Speed } from '../ui/replay';
-import type { ReportData, Standing } from '../ui/report';
-import type { TypeArea } from '../ui/title';
-import { Camera, targetWindow } from './camera';
+import { BoardFeed } from './boards';
 import { dailyDay } from './daily';
 import { type KeyTarget, onKeyDown, onKeyUp, type Screen } from './keys';
 import { GameLoop } from './loop';
@@ -25,10 +23,10 @@ import { Attract, fastForward, Run } from './run';
 import { localSeed, SeedBank, type Ticket } from './seeds';
 import type { Session } from './session';
 import { SlowMo } from './slowmo';
+import { Stage } from './stage';
+import { hudTag, reportOf, youText } from './standing';
 import { keepMine, Submission, type SubmitState } from './submit';
-
-import { toBoard, type Rect, type View } from './view';
-import { bestFit, grow, isPhone, playView, regionView, reportRegion, titleRegion } from './viewport';
+import { toBoard, type View } from './view';
 import { Watch } from './watch';
 
 const BOTS: readonly string[] = ['heuristic', 'sloppy', 'idle'];
@@ -42,50 +40,40 @@ export class App implements KeyTarget, UiHost {
   readonly api = new Api({ owner: () => deviceKey() });
   readonly seeds = new SeedBank(this.api);
   readonly audio = new AudioEngine();
-  readonly camera = new Camera();
-  readonly renderer: DriftRenderer;
+  readonly stage: Stage;
   readonly loop: GameLoop;
   readonly input: PointerInput;
   readonly nav = new Nav((r) => this.route(r));
   readonly watch: Watch;
   readonly ui: Ui;
-  private readonly chrome = new Chrome();
+  private readonly boards: BoardFeed;
   private slowmo = new SlowMo();
   screen: Screen = 'title';
-  view: View;
   run: Run | null = null;
   attract: Attract | null = null;
   /** What the board pages are drawn over: the bot game, or the run whose report opened them. */
   private backdrop: 'attract' | 'run' = 'attract';
-  private drawn: Session | null = null;
   private readonly heard = new WeakSet<Session>();
-  private W = 1;
-  private H = 1;
-  private dpr = 1;
   private lastNow = performance.now();
   private lastPhase: Phase = 'play';
   private botShopAt = 0;
-  private reportRect: Rect | null = null;
-  private reportT0 = 0;
-  private typeArea: TypeArea | null = null;
   private slowKey = false;
   private timeScale = 1;
   private woke = false;
   private tutorialSeen = false;
   /** Running the sim ahead for a debug screen: no effects, no sound. */
   private ffwd = false;
-  private boardSeq = 0;
   private readonly systemReduced = matchMedia('(prefers-reduced-motion: reduce)');
   private readonly autoplay: BotKind | null;
   private readonly customSeed: string | null;
 
-  constructor(private readonly params: URLSearchParams, canvas: HTMLCanvasElement, root: HTMLElement) {
+  constructor(params: URLSearchParams, canvas: HTMLCanvasElement, root: HTMLElement) {
     const bot = params.get('autoplay');
     this.autoplay = bot && BOTS.includes(bot) ? (bot as BotKind) : null;
     this.customSeed = params.get('seed');
-    this.renderer = new DriftRenderer(canvas);
-    this.view = playView(innerWidth, innerHeight, 1, targetWindow(this.ensureAttract().session.state));
+    this.stage = new Stage(canvas);
     this.ui = mountUi(root, this);
+    this.boards = new BoardFeed(this.api, this.store, this.ui.board);
     this.watch = new Watch(this.api, {
       attach: (sess, intro) => this.listen(sess, 'replay', intro),
       loaded: (run, duration) => this.ui.replay.show(run, duration),
@@ -97,7 +85,7 @@ export class App implements KeyTarget, UiHost {
       state: () => this.run?.state ?? null,
       act: (a) => this.run?.session.act(a),
       denied: (t) => this.denied(t.node, t.denied),
-      toBoard: (x, y) => toBoard(this.view, x, y),
+      toBoard: (x, y) => toBoard(this.stage.view, x, y),
     });
     this.loop = new GameLoop({
       onTick: () => this.tick(),
@@ -141,11 +129,12 @@ export class App implements KeyTarget, UiHost {
       case 'play':
       case 'daily': {
         const mode = r.name === 'daily' ? 'daily' : 'endless';
-        if (this.run?.reported && this.run.ticket.mode === mode && this.backdrop === 'run' && OVERLAYS.includes(this.screen)) return this.showReport(this.run);
+        const run = this.run;
+        if (run?.reported && run.ticket.mode === mode && this.backdrop === 'run' && OVERLAYS.includes(this.screen)) return this.showReport(run);
         return this.startRun(mode);
       }
       case 'board':
-        return this.openBoard(r.tab ?? this.defaultTab());
+        return this.openBoard(r.tab ?? (this.backdrop === 'run' && this.run ? this.run.ticket.mode : 'daily'));
       case 'replay':
         return this.openReplay(r.id);
       case 'agents':
@@ -164,8 +153,13 @@ export class App implements KeyTarget, UiHost {
     return this.loop.paused;
   }
 
+  /** The session on screen (the debug hooks read it). */
   get session(): Session | null {
-    return this.drawn;
+    return this.stage.drawn;
+  }
+
+  get view(): View {
+    return this.stage.view;
   }
 
   wake(): void {
@@ -221,21 +215,19 @@ export class App implements KeyTarget, UiHost {
   }
 
   pick(slot: 0 | 1 | 2): void {
-    const s = this.run?.state;
-    if (!s || s.phase !== 'shop') return;
+    const run = this.run;
+    const s = run?.state;
+    if (!run || !s || s.phase !== 'shop') return;
     const o = s.offers[slot];
-    if (!o || s.credits < o.price) {
-      this.ui.shop.refuse(slot);
-      return;
-    }
-    this.run!.session.act([{ type: 'pick', slot }]);
+    if (!o || s.credits < o.price) this.ui.shop.refuse(slot);
+    else run.session.act([{ type: 'pick', slot }]);
   }
 
   reroll(): void {
-    const s = this.run?.state;
-    if (!s || s.phase !== 'shop' || s.credits < 3) return;
-    this.run!.session.act([{ type: 'reroll' }]);
-    this.ui.shop.render(s);
+    const run = this.run;
+    if (!run || run.state.phase !== 'shop' || run.state.credits < 3) return;
+    run.session.act([{ type: 'reroll' }]);
+    this.ui.shop.render(run.state);
   }
 
   skip(): void {
@@ -245,11 +237,8 @@ export class App implements KeyTarget, UiHost {
   /** R and Run again: always instant, whatever the board is doing with the last run. */
   again(): void {
     this.wake();
-    if (this.screen === 'replay') {
-      this.watchAgain();
-      return;
-    }
-    this.startRun(this.run?.ticket.mode ?? 'endless');
+    if (this.screen === 'replay') this.watchAgain();
+    else this.startRun(this.run?.ticket.mode ?? 'endless');
   }
 
   slow(on: boolean): void {
@@ -257,15 +246,13 @@ export class App implements KeyTarget, UiHost {
   }
 
   close(): void {
-    if (this.screen === 'replay') return this.nav.back({ name: 'title' });
     const run = this.run;
-    const fallback: Route = this.backdrop === 'run' && run ? { name: run.ticket.mode === 'daily' ? 'daily' : 'play' } : { name: 'title' };
-    this.nav.back(fallback);
+    const backToRun = this.screen !== 'replay' && this.backdrop === 'run' && run;
+    this.nav.back(backToRun ? { name: run.ticket.mode === 'daily' ? 'daily' : 'play' } : { name: 'title' });
   }
 
   replayToggle(): void {
-    if (this.watch.reported) return;
-    this.watch.toggle();
+    if (!this.watch.reported) this.watch.toggle();
   }
 
   replaySpeed(x: Speed): void {
@@ -287,15 +274,15 @@ export class App implements KeyTarget, UiHost {
 
   /** From a report: the board this run belongs to. */
   reportBoard(): void {
-    const tab: BoardName = this.screen === 'replay' ? ((this.watch.run?.board as BoardName) ?? 'daily') : (this.run?.ticket.mode ?? 'daily');
+    const tab: BoardName = this.screen === 'replay' ? ((this.watch.run?.board as BoardName | undefined) ?? 'daily') : (this.run?.ticket.mode ?? 'daily');
     this.openBoard(tab);
     this.nav.push({ name: 'board', tab });
   }
 
   /** The report's quiet button: back to the title after a run, or into a game after a replay. */
   reportLeave(): void {
-    if (this.screen === 'replay') return this.play('endless');
-    this.quit();
+    if (this.screen === 'replay') this.play('endless');
+    else this.quit();
   }
 
   openBoardTab(tab: BoardName): void {
@@ -309,24 +296,23 @@ export class App implements KeyTarget, UiHost {
   }
 
   retryBoard(): void {
-    void this.loadBoard(this.ui.board.selected);
+    void this.boards.load(this.ui.board.selected);
   }
 
   /* ---------------------------------------------------------------- screens */
 
   private hideAll(): void {
     for (const s of Object.values(this.ui)) s.hide();
+    this.boards.cancel();
   }
 
   private showTitle(): void {
-    this.endRun();
     this.watch.stop();
     this.screen = 'title';
     this.backdrop = 'attract';
     this.hideAll();
-    this.present(this.ensureAttract().session);
-    const d = this.store.get();
-    this.ui.title.show(shortDay(dailyDay()), Object.keys(d.archive).length, INJECTIONS.length);
+    this.stage.present(this.ensureAttract().session);
+    this.ui.title.show(shortDay(dailyDay()), Object.keys(this.store.get().archive).length, INJECTIONS.length);
     this.seeds.prefetch();
     this.measureType();
   }
@@ -336,7 +322,6 @@ export class App implements KeyTarget, UiHost {
   }
 
   private begin(ticket: Ticket, bot: BotKind | null): Run {
-    this.endRun();
     this.watch.stop();
     const run = new Run(ticket, bot, showTutorial(this.store.get()) && !this.tutorialSeen);
     this.run = run;
@@ -347,58 +332,32 @@ export class App implements KeyTarget, UiHost {
     this.hideAll();
     this.ui.hud.reset();
     this.ui.hud.show();
-    this.renderer.calm();
+    this.stage.renderer.calm();
     this.input.reset();
     this.lastPhase = 'play';
     this.botShopAt = 0;
-    this.reportRect = null;
     if (this.loop.paused) this.loop.resume();
     const hint = 'keep the work flowing · cut what turns orange';
-    if (ticket.mode === 'daily') this.ui.hud.toast.show(`Daily · ${shortDay(run.day(dailyDay()))}`, hint);
-    else this.ui.hud.toast.show('Wave 1', hint);
+    this.ui.hud.toast.show(ticket.mode === 'daily' ? `Daily · ${shortDay(run.day(dailyDay()))}` : 'Wave 1', hint);
     return run;
   }
 
-  /** Leaving a run behind: nothing about it waits on the network. */
-  private endRun(): void {
-    this.ui.pause.hide();
-    this.ui.shop.hide();
-  }
-
   private showReport(run: Run): void {
-    const s = run.state;
     run.reported = true;
     this.screen = 'over';
     this.backdrop = 'run';
-    this.reportT0 = performance.now();
-    this.reportRect = grow(targetWindow(s), 1.04);
     this.hideAll();
-    this.present(run.session);
-    const d = this.store.get();
-    const day = run.day(dailyDay());
-    const bestNow = run.ticket.mode === 'daily' ? (d.best.daily[day] ?? 0) : d.best.endless;
-    const data: ReportData = {
-      s,
-      timeline: run.session.timeline,
-      standing: this.standing(run),
-      best: run.bot ? null : { value: Math.max(bestNow, s.score), isNew: !!run.outcome?.newBest && s.score > 0 },
-      archive: run.outcome ? { fresh: run.outcome.newPayloads.length, have: Object.keys(d.archive).length, total: INJECTIONS.length } : null,
-    };
-    this.ui.report.show(data);
+    this.stage.present(run.session);
+    this.stage.frameReport(run.state);
+    this.ui.report.show(reportOf(run, this.store.get(), dailyDay()));
     const sub = run.submission;
     if (sub && sub.state.k !== 'idle') this.ui.report.setSubmit(sub.state, sub.run.board);
   }
 
-  private standing(run: Run): Standing {
-    if (run.ticket.unranked) return { k: 'unranked', why: run.ticket.unranked };
-    if (!run.submission) return { k: 'unranked', why: 'custom' };
-    return { k: 'submittable', board: run.submission.run.board, name: this.store.get().name };
-  }
-
   private openBoard(tab: BoardName): void {
     this.overlay('board');
-    this.ui.board.show(tab, this.youText(tab));
-    void this.loadBoard(tab);
+    this.ui.board.show(tab, youText(tab, this.store.get(), dailyDay()));
+    void this.boards.load(tab);
   }
 
   private openPage(page: 'agents' | 'archive'): void {
@@ -414,14 +373,14 @@ export class App implements KeyTarget, UiHost {
     this.screen = screen;
     this.backdrop = overRun ? 'run' : 'attract';
     this.hideAll();
-    this.present(overRun && this.run ? this.run.session : this.ensureAttract().session);
+    this.stage.present(overRun && this.run ? this.run.session : this.ensureAttract().session);
   }
 
   private openReplay(id: string): void {
     this.screen = 'replay';
     this.backdrop = 'attract';
     this.hideAll();
-    this.present(this.ensureAttract().session);
+    this.stage.present(this.ensureAttract().session);
     void this.watch.load(id);
   }
 
@@ -431,29 +390,13 @@ export class App implements KeyTarget, UiHost {
     this.watch.again();
   }
 
-  private defaultTab(): BoardName {
-    return this.backdrop === 'run' && this.run ? this.run.ticket.mode : 'daily';
-  }
-
-  private youText(tab: BoardName): string {
-    if (tab === 'agents') return 'agents rank on their own board';
-    const d = this.store.get();
-    const best = tab === 'daily' ? (d.best.daily[dailyDay()] ?? 0) : d.best.endless;
-    if (best) return `your best on this device · ${nf(best)}`;
-    return tab === 'daily' ? 'no daily run on this device today' : 'no endless run on this device yet';
-  }
-
-  private async loadBoard(tab: BoardName): Promise<void> {
-    const seq = ++this.boardSeq;
-    this.ui.board.render({ k: 'loading' });
-    const mine = this.store.get().mine;
-    const today = dailyDay();
-    const my = tab === 'daily' ? (mine.daily?.day === today ? mine.daily.id : null) : tab === 'endless' ? (mine.endless?.id ?? null) : null;
-    const r = await this.api.board(tab, my ?? undefined);
-    if (seq !== this.boardSeq || this.screen !== 'board') return;
-    if (r.ok && Array.isArray(r.rows)) this.ui.board.render({ k: 'rows', rows: r.rows, me: r.me ?? null, day: r.day ?? null, mine: my });
-    else if (r.ok || 'offline' in r || r.status === 503) this.ui.board.render({ k: 'offline' });
-    else this.ui.board.render({ k: 'error', error: r.error });
+  private showReplayReport(): void {
+    const { session: sess, run } = this.watch;
+    if (!sess || !run) return;
+    this.watch.reported = true;
+    this.stage.frameReport(sess.state);
+    this.ui.replay.controls(false);
+    this.ui.report.show({ s: sess.state, timeline: sess.timeline, standing: { k: 'replay', who: run.name, board: run.board }, best: null, archive: null });
   }
 
   /* ---------------------------------------------------------------- sessions and their events */
@@ -463,25 +406,17 @@ export class App implements KeyTarget, UiHost {
     const a = new Attract();
     this.attract = a;
     a.session.on((e) => {
-      if (this.drawn === a.session) this.renderer.onEvent(a.session, e, false);
+      if (this.stage.drawn === a.session) this.stage.renderer.onEvent(a.session, e, false);
     });
     return a;
   }
 
-  /** Draws this session from now on; a switch resets the camera and the renderer's memory. */
-  private present(sess: Session, intro = false, force = false): void {
-    if (sess === this.drawn && !force) return;
-    this.drawn = sess;
-    this.camera.reset();
-    this.renderer.reset(sess, intro);
-  }
-
   private listen(sess: Session, kind: 'run' | 'replay', intro: boolean): void {
-    this.present(sess, intro, true);
+    this.stage.present(sess, intro, true);
     if (this.heard.has(sess)) return;
     this.heard.add(sess);
     sess.on((e) => {
-      if (this.drawn !== sess || this.ffwd) return;
+      if (this.stage.drawn !== sess || this.ffwd) return;
       if (kind === 'run') this.onRunEvent(e);
       else this.onReplayEvent(e);
     });
@@ -491,7 +426,7 @@ export class App implements KeyTarget, UiHost {
     const run = this.run;
     if (!run) return;
     this.audio.onEvent(e);
-    this.renderer.onEvent(run.session, e, true);
+    this.stage.renderer.onEvent(run.session, e, true);
     if (e.e === 'intercept' && run.tutorial) {
       run.tutorial = false;
       this.tutorialSeen = true;
@@ -506,7 +441,7 @@ export class App implements KeyTarget, UiHost {
     const sess = this.watch.session;
     if (!sess || this.watch.quiet) return;
     this.audio.onEvent(e);
-    this.renderer.onEvent(sess, e, true);
+    this.stage.renderer.onEvent(sess, e, true);
     if (e.e === 'over') this.watch.overAt = performance.now();
   }
 
@@ -520,8 +455,8 @@ export class App implements KeyTarget, UiHost {
       run.outcome = recordRun(d, rec);
     });
     if (run.ticket.unranked || (s.end !== 'leak' && s.end !== 'stall')) return;
-    const board = run.ticket.mode;
-    run.submission = new Submission({ board, replay: run.session.replay(), score: s.score, token: run.ticket.token, day }, this.api, (st) => this.onSubmit(run, st));
+    const finished = { board: run.ticket.mode, replay: run.session.replay(), score: s.score, token: run.ticket.token, day };
+    run.submission = new Submission(finished, this.api, (st) => this.onSubmit(run, st));
   }
 
   private onSubmit(run: Run, st: SubmitState): void {
@@ -529,16 +464,15 @@ export class App implements KeyTarget, UiHost {
     if (!sub) return;
     if (st.k === 'ranked') this.store.update((d) => keepMine(d, sub.run, st.id));
     if (this.screen === 'over' && this.run === run) this.ui.report.setSubmit(st, sub.run.board);
-    else if (st.k === 'ranked' && this.screen === 'play') {
-      this.ui.hud.toast.show(`#${st.rank}`, `your last run, on the ${sub.run.board} board`);
-    }
+    else if (st.k === 'ranked' && this.screen === 'play') this.ui.hud.toast.show(`#${st.rank}`, `your last run, on the ${sub.run.board} board`);
   }
 
   private denied(node: number, why: 'credits' | 'quarantined'): void {
     const s = this.run?.state;
     const n = s?.nodes[node];
     if (!s || !n) return;
-    this.renderer.scene.addFx({ k: 'deny', t0: 0, dur: 1000, bx: n.x, by: n.y, text: why === 'credits' ? `need ${quarantineCost(s)} credits` : 'already sealed' });
+    const text = why === 'credits' ? `need ${quarantineCost(s)} credits` : 'already sealed';
+    this.stage.renderer.scene.addFx({ k: 'deny', t0: 0, dur: 1000, bx: n.x, by: n.y, text });
     if (why === 'credits') this.ui.hud.deny();
   }
 
@@ -549,90 +483,76 @@ export class App implements KeyTarget, UiHost {
   }
 
   private tick(): void {
-    if (this.screen === 'replay' && this.watch.session) {
+    const r = this.stage.renderer;
+    const replay = this.screen === 'replay' ? this.watch.session : null;
+    if (replay) {
       this.watch.tick();
-      this.renderer.onTick(this.watch.session);
+      r.onTick(replay);
       return;
     }
     if (this.screen === 'play' && this.run) {
       const { session, bot } = this.run;
       if (bot && session.state.phase === 'play') session.act(bot(session.state));
       session.tick();
-      this.renderer.onTick(session);
+      r.onTick(session);
       return;
     }
     const a = this.attract;
-    if (!a || this.drawn !== a.session) return;
-    const s = a.session.state;
-    if (s.phase === 'play') a.session.act(a.bot(s));
+    if (!a || this.stage.drawn !== a.session) return;
+    if (a.session.state.phase === 'play') a.session.act(a.bot(a.session.state));
     a.session.tick();
-    this.renderer.onTick(a.session);
+    r.onTick(a.session);
   }
 
-  /** Phase changes that the screens follow: shop, end of run, report, the attract board starting over. */
+  /** Phase changes the screens follow: shop, end of run, report, the replay's end, the attract board starting over. */
   private follow(now: number): void {
-    const run = this.run;
-    if (this.screen === 'play' && run) {
-      const s = run.state;
-      if (s.phase === 'shop' && this.lastPhase !== 'shop') this.ui.shop.show(s);
-      else if (s.phase === 'shop') this.ui.shop.render(s);
-      else if (this.lastPhase === 'shop') this.ui.shop.hide();
-      if (s.phase === 'shop' && run.bot) {
-        this.botShopAt ||= now + 900;
-        if (now > this.botShopAt) {
-          this.botShopAt = 0;
-          run.session.act(run.bot(s));
-        }
+    if (this.screen === 'play' && this.run) this.followRun(this.run, now);
+    else if (this.screen === 'replay' && this.watch.session) this.followReplay(now);
+    else this.followAttract(now);
+  }
+
+  private followRun(run: Run, now: number): void {
+    const s = run.state;
+    if (s.phase === 'shop' && this.lastPhase !== 'shop') this.ui.shop.show(s);
+    else if (s.phase === 'shop') this.ui.shop.render(s);
+    else if (this.lastPhase === 'shop') this.ui.shop.hide();
+    if (s.phase === 'shop' && run.bot) {
+      this.botShopAt ||= now + 900;
+      if (now > this.botShopAt) {
+        this.botShopAt = 0;
+        run.session.act(run.bot(s));
       }
-      this.lastPhase = s.phase;
-      if (s.phase === 'over' && !run.reported && run.overAt && now - run.overAt > reportDelay(s)) this.showReport(run);
-      return;
     }
-    if (this.screen === 'replay' && this.watch.session) {
-      this.watch.applySeek();
-      const s = this.watch.session.state;
-      if (this.watch.done && !this.watch.reported && now - (this.watch.overAt || now) > reportDelay(s)) this.showReplayReport();
-      else if (!this.watch.done && this.watch.reported) {
-        this.watch.reported = false;
-        this.ui.report.hide();
-        this.ui.replay.controls(true);
-      }
-      return;
+    this.lastPhase = s.phase;
+    if (s.phase === 'over' && !run.reported && run.overAt && now - run.overAt > reportDelay(s)) this.showReport(run);
+  }
+
+  private followReplay(now: number): void {
+    const w = this.watch;
+    w.applySeek();
+    const s = w.session!.state;
+    if (w.done && !w.reported && now - (w.overAt || now) > reportDelay(s)) this.showReplayReport();
+    else if (!w.done && w.reported) {
+      w.reported = false;
+      this.ui.report.hide();
+      this.ui.replay.controls(true);
     }
+  }
+
+  private followAttract(now: number): void {
     const a = this.attract;
-    if (!a || this.drawn !== a.session) return;
+    if (!a || this.stage.drawn !== a.session) return;
     const s = a.session.state;
     if (s.phase === 'shop') a.session.act(a.bot(s));
-    if (s.phase === 'over') {
-      a.overAt ||= now;
-      if (now - a.overAt > 2600) this.present(this.ensureAttract().session);
-    }
-  }
-
-  private showReplayReport(): void {
-    const w = this.watch;
-    const sess = w.session;
-    if (!sess || !w.run) return;
-    w.reported = true;
-    this.reportT0 = performance.now();
-    this.reportRect = grow(targetWindow(sess.state), 1.04);
-    this.ui.replay.controls(false);
-    this.ui.report.show({ s: sess.state, timeline: sess.timeline, standing: { k: 'replay', who: w.run.name, board: w.run.board }, best: null, archive: null });
+    if (s.phase !== 'over') return;
+    a.overAt ||= now;
+    if (now - a.overAt > 2600) this.stage.present(this.ensureAttract().session);
   }
 
   private look(): Look {
-    switch (this.screen) {
-      case 'title':
-        return 'title';
-      case 'play':
-        return 'play';
-      case 'over':
-        return 'over';
-      case 'replay':
-        return !this.watch.session ? 'backdrop' : this.watch.reported ? 'over' : 'play';
-      default:
-        return 'backdrop';
-    }
+    if (this.screen === 'title' || this.screen === 'play' || this.screen === 'over') return this.screen;
+    if (this.screen === 'replay' && this.watch.session) return this.watch.reported ? 'over' : 'play';
+    return 'backdrop';
   }
 
   private frame(alpha: number): void {
@@ -640,67 +560,44 @@ export class App implements KeyTarget, UiHost {
     const dt = Math.min(0.05, (now - this.lastNow) / 1000);
     this.lastNow = now;
     this.follow(now);
-    const sess = this.drawn;
+    const sess = this.stage.drawn;
     if (!sess) return;
     const s = sess.state;
     const look = this.look();
     const playing = this.screen === 'play';
+    const replaying = this.screen === 'replay' && look === 'play';
     const live = playing && s.phase === 'play' && !this.loop.paused;
-    const replaying = this.screen === 'replay' && look === 'play' && this.watch.playing;
+    const moving = live || (replaying && this.watch.playing);
+    const ticking = s.phase === 'play' && !this.loop.paused && (this.screen !== 'replay' || this.watch.playing);
     const attract = this.attract?.session === sess;
-    const threat = live || replaying ? threatOf(s) : playing && s.phase === 'over' ? 1 : attract ? threatOf(s) * 0.3 : 0;
-    this.audio.setThreat(live || replaying ? threatOf(s) : 0);
-    this.renderer.advance(dt, look, { threat, frozen: playing && s.phase === 'over' && s.end === 'stall' });
-    this.chrome.update({
-      source: playing ? 'run' : this.screen === 'title' ? 'title' : 'none',
-      live: playing && s.phase === 'play',
-      thr: this.renderer.thr,
-      stalling: playing && s.phase === 'play' && s.stallTicks > 0,
-      reduced: this.renderer.feel.reduced,
-    });
-    if (playing && this.run) this.ui.hud.update(s, this.tag(this.run), this.slowMeter(dt, s));
+    this.audio.setThreat(moving ? threatOf(s) : 0);
+    if (playing && this.run) this.ui.hud.update(s, hudTag(this.run, dailyDay()), this.slowMeter(dt, s));
     if (this.screen === 'title') this.ui.title.live(s, now);
-    if (look === 'play' && this.screen === 'replay') this.ui.replay.update(s, this.watch.duration, this.watch.playing, this.watch.speed);
+    if (replaying) this.ui.replay.update(s, this.watch.duration, this.watch.playing, this.watch.speed);
     this.loop.setTimeScale(this.screen === 'replay' ? this.watch.speed : playing ? this.timeScale : 1);
-    this.view = this.computeView(s, look);
-    const moving = (s.phase === 'play' && !this.loop.paused) && (this.screen !== 'replay' || this.watch.playing);
-    this.renderer.draw({
-      sess,
+    this.stage.draw(sess, {
       look,
-      view: this.view,
-      alpha: moving ? alpha : 1,
+      dt,
       now,
+      alpha: ticking ? alpha : 1,
+      threat: moving ? threatOf(s) : playing && s.phase === 'over' ? 1 : attract ? threatOf(s) * 0.3 : 0,
+      frozen: playing && s.phase === 'over' && s.end === 'stall',
+      escalation: { source: playing ? 'run' : this.screen === 'title' ? 'title' : 'none', live: playing && s.phase === 'play', stalling: playing && s.phase === 'play' && s.stallTicks > 0 },
+      replay: replaying,
       interactive: playing && !this.loop.paused,
       tutorial: playing && !!this.run?.tutorial,
-      hover: isPhone(this.W) ? null : this.input.hover,
+      hover: this.stage.phone ? null : this.input.hover,
       trail: this.input.trail,
       overAt: this.screen === 'replay' ? this.watch.overAt : (this.run?.overAt ?? 0),
-      reportT0: this.reportT0,
-      clearing: this.screen === 'title' ? this.typeArea : null,
+      clearing: this.screen === 'title',
     });
   }
 
-  private slowMeter(dt: number, s: GameState) {
+  private slowMeter(dt: number, s: GameState): SlowMeter {
     const owned = !!s.up.hitl;
     this.slowmo.hold(this.slowKey || this.input.twoFingers);
     this.timeScale = this.slowmo.update(dt * 1000, owned && s.phase === 'play' && !this.loop.paused);
-    return { owned, meter: this.slowmo.meter, active: this.timeScale < 1, dry: this.slowmo.dry, phone: isPhone(this.W) };
-  }
-
-  private tag(run: Run): string {
-    const t = run.ticket;
-    if (run.bot) return `seed · ${t.seed} · autoplay`;
-    if (t.mode === 'daily' && !t.unranked) return `daily · ${run.day(dailyDay())}`;
-    if (t.unranked === 'offline') return 'practice · the board is offline';
-    if (t.unranked === 'custom') return `seed · ${t.seed} · practice`;
-    return `seed · ${t.seed}`;
-  }
-
-  private computeView(s: GameState, look: Look): View {
-    const { W, H, dpr } = this;
-    if (look === 'play') return playView(W, H, dpr, this.camera.update(s), this.screen === 'replay');
-    if (look === 'over') return regionView(reportRegion(W, H), this.reportRect ?? grow(targetWindow(s), 1.04), isPhone(W) && H > W, W, H, dpr);
-    return bestFit(titleRegion(W, H, this.typeArea?.top ?? 0), grow(this.camera.update(s), 1.12, 900, 600), W, H, dpr);
+    return { owned, meter: this.slowmo.meter, active: this.timeScale < 1, dry: this.slowmo.dry, phone: this.stage.phone };
   }
 
   /* ---------------------------------------------------------------- debug screens */
@@ -708,68 +605,70 @@ export class App implements KeyTarget, UiHost {
   /** ?screen=play|shop|over|board (with ?ff=ticks for play) under ?debug=1: straight to a screen, for screenshots. */
   jump(screen: string, ff: number): boolean {
     if (screen === 'board') {
-      this.openBoard('daily');
-      this.nav.replace({ name: 'board', tab: null });
+      this.openBoardTab('daily');
       return true;
     }
-    if (screen !== 'play' && screen !== 'shop' && screen !== 'over') return false;
-    if (screen === 'over') {
-      const base = this.customSeed ?? localSeed();
-      for (let tries = 0; tries < 6; tries++) {
-        const run = this.begin({ mode: 'endless', seed: tries ? `${base}-${tries}` : base, unranked: this.customSeed ? 'custom' : null }, null);
-        run.tutorial = false;
-        this.ahead(run, 'idle', (s) => s.phase === 'over', 60_000);
-        if (run.state.end === 'leak') break;
-      }
-      const run = this.run!;
-      run.overAt = performance.now() - 5000;
-      this.finish(run);
-      this.showReport(run);
-    } else {
+    if (screen === 'over') this.jumpToReport();
+    else if (screen === 'play' || screen === 'shop') {
       this.play('endless');
       const run = this.run!;
       run.tutorial = false;
       if (screen === 'shop') this.ahead(run, 'heuristic', (s) => s.phase === 'shop', 20_000);
       else if (ff > 0) this.ahead(run, this.autoplay ?? 'heuristic', (s) => s.tick >= ff, ff + 4000);
       this.ui.hud.toast.hide();
-    }
+    } else return false;
     this.nav.replace({ name: 'play' });
     return true;
   }
 
+  /** Plays seeds with no defence until one leaks, then opens its report. */
+  private jumpToReport(): void {
+    const base = this.customSeed ?? localSeed();
+    let run = this.run;
+    for (let tries = 0; tries < 6; tries++) {
+      run = this.begin({ mode: 'endless', seed: tries ? `${base}-${tries}` : base, unranked: this.customSeed ? 'custom' : null }, null);
+      run.tutorial = false;
+      this.ahead(run, 'idle', (s) => s.phase === 'over', 60_000);
+      if (run.state.end === 'leak') break;
+    }
+    if (!run) return;
+    run.overAt = performance.now() - 5000;
+    this.finish(run);
+    this.showReport(run);
+  }
+
   private ahead(run: Run, bot: BotKind, until: (s: GameState) => boolean, max: number): void {
+    const r = this.stage.renderer;
     this.ffwd = true;
     try {
-      fastForward(run.session, makeBot(bot, run.ticket.seed), until, max, () => this.renderer.onTick(run.session));
+      fastForward(run.session, makeBot(bot, run.ticket.seed), until, max, () => r.onTick(run.session));
     } finally {
       this.ffwd = false;
     }
-    this.renderer.scene.clearBirths();
-    this.camera.reset();
+    r.scene.clearBirths();
+    this.stage.camera.reset();
   }
 
   /* ---------------------------------------------------------------- environment */
 
   private resize(): void {
-    this.dpr = Math.min(devicePixelRatio || 1, 2);
-    this.W = innerWidth;
-    this.H = innerHeight;
-    this.renderer.resize(this.W, this.H, this.dpr);
+    this.stage.resize();
     this.measureType();
   }
 
   private measureType(): void {
-    const t = this.ui.title.measure(this.W);
-    if (t) this.typeArea = t;
+    const t = this.ui.title.measure(this.stage.W);
+    if (t) this.stage.typeArea = t;
   }
 
   private applySettings(): void {
     const st = this.store.get().settings;
     const sys = this.systemReduced.matches;
+    const feel = this.stage.renderer.feel;
     this.audio.setMuted(!st.sound);
     this.audio.setMusic(st.music);
-    this.renderer.feel.shake = st.shake;
-    this.renderer.feel.reduced = st.reducedMotion || sys;
+    feel.shake = st.shake;
+    feel.reduced = st.reducedMotion || sys;
     document.documentElement.classList.toggle('rm', st.reducedMotion);
     for (const b of qa(document, '[data-mute]')) b.setAttribute('aria-pressed', String(st.sound));
     this.ui.pause.sync(st, sys);
