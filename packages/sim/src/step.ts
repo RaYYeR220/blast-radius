@@ -1,5 +1,13 @@
+import { applyAction } from './actions';
 import { generateBoard } from './board';
-import { MAX_RUN_TICKS, SIM_VERSION, STALL_TICKS, START_AGENTS, TUTORIAL_INJECT_TICK } from './constants';
+import {
+  MAX_RUN_TICKS,
+  SCORE_COMBO,
+  SIM_VERSION,
+  STALL_TICKS,
+  START_AGENTS,
+  TUTORIAL_INJECT_TICK,
+} from './constants';
 import { endGame } from './end';
 import { infectionTick, injectGoal, onArrive, revealPass, spawnInject } from './infection';
 import { activateNode } from './graph';
@@ -143,7 +151,14 @@ function advance(s: GameState): void {
  */
 export function step(s: GameState, actions: readonly Action[]): SimEvent[] {
   s.events = [];
-  void actions;
+  const before = s.intercepts;
+  for (const a of actions) applyAction(s, a, () => false);
+  const n = s.intercepts - before;
+  if (n >= 2) {
+    s.score += SCORE_COMBO * (n - 1);
+    s.combos++;
+    s.events.push({ tick: s.tick, e: 'combo', n });
+  }
   if (s.phase === 'play') advance(s);
   return s.events;
 }
