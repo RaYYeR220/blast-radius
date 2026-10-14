@@ -43,6 +43,29 @@ describe('Api', () => {
     vi.useRealTimers();
   });
 
+  it('gives a submission longer than other calls, since the server replays the whole run', async () => {
+    vi.useFakeTimers();
+    try {
+      let answer!: () => void;
+      const api = new Api({
+        fetch: ((_u: string, init?: RequestInit) =>
+          new Promise((res, rej) => {
+            answer = () => res(new Response(JSON.stringify({ id: 'r1', rank: 2 })));
+            init?.signal?.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError')));
+          })) as never,
+        base: '',
+        owner: () => 'k'.repeat(24),
+        timeoutMs: 8000,
+      });
+      const p = api.submit({ v: 1, mode: 'daily', seed: 's', actions: [] }, 1, 'ada');
+      await vi.advanceTimersByTimeAsync(15_000);
+      answer();
+      expect(await p).toEqual({ ok: true, id: 'r1', rank: 2 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('passes the server\'s refusal through with its reason', async () => {
     const api = new Api({ fetch: (() => ok({ error: 'that name belongs to someone else; pick another' }, 409)) as never, base: '', owner: () => 'k'.repeat(24) });
     expect(await api.submit({ v: 1, mode: 'daily', seed: 's', actions: [] }, 1, 'ada')).toEqual({

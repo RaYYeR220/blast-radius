@@ -25,6 +25,9 @@ export interface StoredRun {
   summary: Omit<RunSummary, 'leakPath' | 'finalHash' | 'effectiveActions'>;
 }
 
+/** The server re-simulates the whole run before it answers, so a submission gets longer than other calls. */
+const SUBMIT_TIMEOUT_MS = 30_000;
+
 interface ApiOptions {
   fetch?: typeof fetch;
   base?: string;
@@ -44,9 +47,9 @@ export class Api {
     this.timeoutMs = o.timeoutMs ?? 8000;
   }
 
-  private async call<T>(path: string, init?: RequestInit): Promise<Result<T>> {
+  private async call<T>(path: string, init?: RequestInit, timeoutMs = this.timeoutMs): Promise<Result<T>> {
     const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), this.timeoutMs);
+    const timer = setTimeout(() => ctl.abort(), timeoutMs);
     try {
       const res = await this.f(`${this.base}${path}`, { ...init, signal: ctl.signal });
       const body = (await res.json().catch(() => null)) as Record<string, unknown> | null;
@@ -71,7 +74,7 @@ export class Api {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ replay, score, name, token, owner: this.o.owner() }),
-    });
+    }, SUBMIT_TIMEOUT_MS);
     return r.ok ? { ok: true, id: r.id, rank: r.rank } : r;
   }
 
