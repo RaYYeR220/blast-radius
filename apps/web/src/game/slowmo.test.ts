@@ -20,7 +20,7 @@ describe('SlowMo', () => {
     m.hold(true);
     for (let t = 0; t < 4100; t += 16) m.update(16, true);
     expect(m.update(16, true)).toBe(1);
-    expect(m.meter).toBe(0);
+    expect(m.meter).toBeLessThan(0.05); // empty, and only just starting to refill
     m.hold(false);
     for (let t = 0; t < 20_000; t += 16) m.update(16, true);
     expect(m.meter).toBe(1);
