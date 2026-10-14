@@ -4,9 +4,33 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Blast Radius</title>
+    <meta name="description" content="An arcade game about prompt injection. Your agents read the internet; the internet reads back. Swipe to cut a link, tap an agent to quarantine it, and keep the vault key from walking out." />
+    <meta name="theme-color" content="#f1f0ee" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Blast Radius" />
+    <meta property="og:title" content="Blast Radius" />
+    <meta property="og:description" content="Your agents read the internet. The internet reads back. An arcade game about a prompt-injection worm loose in a swarm of AI agents." />
+    <meta property="og:url" content="https://blast-radius-game.vercel.app/" />
+    <meta property="og:image" content="https://blast-radius-game.vercel.app/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Blast Radius: a swarm of agents drawn as drifting particles on warm paper" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Blast Radius" />
+    <meta name="twitter:description" content="Your agents read the internet. The internet reads back." />
+    <meta name="twitter:image" content="https://blast-radius-game.vercel.app/og.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600&family=Figtree:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=Fragment+Mono&display=swap" />
   </head>
   <body>
-    <canvas id="board"></canvas>
+    <div class="ground" aria-hidden="true"></div>
+    <div class="warm" id="warm" aria-hidden="true"></div>
+    <canvas id="cv" role="img" aria-label="The agent mesh: links drawn as drifting particle streams, agents as particle clusters"></canvas>
+    <div class="alarm" id="alarm" aria-hidden="true"></div>
+    <div id="ui"></div>
+    <div class="grain" aria-hidden="true"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
