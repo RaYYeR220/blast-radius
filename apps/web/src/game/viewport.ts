@@ -17,6 +17,11 @@ export function playInsets(phone: boolean): Insets {
   return phone ? { top: 92, right: 12, bottom: 84, left: 12 } : { top: 100, right: 32, bottom: 96, left: 32 };
 }
 
+/** A replay keeps room for its control bar (two rows on phone) and the player's name. */
+export function replayInsets(phone: boolean): Insets {
+  return phone ? { top: 92, right: 12, bottom: 178, left: 12 } : { top: 100, right: 32, bottom: 104, left: 32 };
+}
+
 /** Scales a board window about its centre, never below a minimum size. */
 export function grow(rect: Rect, f: number, minW = 0, minH = 0): Rect {
   const w = Math.max(rect.w * f, minW);
@@ -50,7 +55,8 @@ export function titleRegion(W: number, H: number, typeTop: number): Region {
   return { x: 12, y: 74, w: W - 24, h: Math.max(160, (typeTop || H - 400) - 74 - 22) };
 }
 
-/** The live board while playing. */
-export function playView(W: number, H: number, dpr: number, rect: Rect): View {
-  return fitView(W, H, dpr, playInsets(isPhone(W)), rect);
+/** The live board while playing, or while watching a replay. */
+export function playView(W: number, H: number, dpr: number, rect: Rect, replay = false): View {
+  const phone = isPhone(W);
+  return fitView(W, H, dpr, replay ? replayInsets(phone) : playInsets(phone), rect);
 }
