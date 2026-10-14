@@ -36,6 +36,9 @@ export interface SimNode {
   infectedAt: number;
   nextEmitAt: number;
   degree: number;
+  /** Injection text that infected this agent (−1 = none); copies inherit it. */
+  payload: number;
+  incubPayload: number;
 }
 
 /** Endpoints are stored with a < b; gapT is measured from a (−1 = no gap). */

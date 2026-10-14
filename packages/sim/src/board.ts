@@ -26,6 +26,8 @@ function makeNode(id: number, kind: NodeKind, p: Point): SimNode {
     infectedAt: 0,
     nextEmitAt: 0,
     degree: 0,
+    payload: -1,
+    incubPayload: -1,
   };
 }
 

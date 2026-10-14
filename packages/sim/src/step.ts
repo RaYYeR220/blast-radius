@@ -1,5 +1,7 @@
 import { generateBoard } from './board';
-import { MAX_RUN_TICKS, SIM_VERSION, STALL_TICKS, START_AGENTS } from './constants';
+import { MAX_RUN_TICKS, SIM_VERSION, STALL_TICKS, START_AGENTS, TUTORIAL_INJECT_TICK } from './constants';
+import { endGame } from './end';
+import { infectionTick, injectGoal, onArrive, revealPass, spawnInject } from './infection';
 import { activateNode } from './graph';
 import {
   backlog,
@@ -12,7 +14,9 @@ import {
   taskGoal,
 } from './packets';
 import { Rng } from './rng';
-import type { Action, EndReason, GameOptions, GameState, SimEvent, UpgradeId } from './types';
+import type { Action, GameOptions, GameState, SimEvent, UpgradeId } from './types';
+
+export { endGame };
 
 const NO_UPGRADES: Record<UpgradeId, boolean> = {
   sandbox: false,
@@ -94,16 +98,9 @@ export function createGame(o: GameOptions): GameState {
 }
 
 const hooks: FlowHooks = {
-  goalOf: (_s, p) => taskGoal(p),
-  onArrive: () => {},
+  goalOf: (s, p) => (p.kind === 'task' ? taskGoal(p) : injectGoal(s, p)),
+  onArrive,
 };
-
-export function endGame(s: GameState, reason: EndReason): void {
-  if (s.phase === 'over') return;
-  s.phase = 'over';
-  s.end = reason;
-  s.events.push({ tick: s.tick, e: 'over', reason });
-}
 
 function healEdges(s: GameState): void {
   for (const e of s.edges) {
@@ -125,9 +122,15 @@ function checkStall(s: GameState): void {
 
 function advance(s: GameState): void {
   healEdges(s);
+  if (s.wave === 1 && !s.tutorialDone && s.tick === TUTORIAL_INJECT_TICK) {
+    s.tutorialDone = true;
+    spawnInject(s, s.web, 'plain');
+  }
   spawnTasks(s);
   dispatch(s);
+  infectionTick(s);
   movePackets(s, hooks);
+  if (s.phase === 'play') revealPass(s);
   sweepDead(s);
   if (s.phase === 'play') checkStall(s);
   s.tick++;

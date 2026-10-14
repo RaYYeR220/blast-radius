@@ -11,6 +11,7 @@ export function testState(
     s.nodes.push({
       id, kind, x, y, active: true, activatedAt: 0, quarantinedUntil: 0, infection: 0,
       incubateUntil: 0, incubVariant: null, infectedAt: 0, nextEmitAt: 0, degree: 0,
+      payload: -1, incubPayload: -1,
     }),
   );
   edges.forEach(([a, b], id) => {
