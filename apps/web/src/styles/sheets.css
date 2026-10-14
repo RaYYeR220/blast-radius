@@ -1,0 +1,62 @@
+/* overlays: shop, pause */
+.veil{position:absolute;inset:0;background:rgba(241,240,238,.5);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);pointer-events:auto}
+.sheet{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(920px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;pointer-events:auto;background:rgba(241,240,238,.9);border-radius:calc(var(--r-xl) * 1.4);box-shadow:inset 0 0 0 1px var(--hair), var(--neu);padding:34px 36px 30px;animation:sheet .5s var(--ease) both}
+.sheet:focus{outline:none}
+@keyframes sheet{from{opacity:0;transform:translate(-50%,-46%)}to{opacity:1;transform:translate(-50%,-50%)}}
+@keyframes sheetm{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:none}}
+.sh-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:24px}
+.sh-head h2{font:600 clamp(40px,5vw,60px)/.92 var(--display);letter-spacing:-.05em;margin-top:12px}
+.sh-cred{text-align:right}
+.sh-cred .v{font:600 44px/1 var(--display);letter-spacing:-.04em}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.card{appearance:none;border:0;cursor:pointer;text-align:left;background:var(--card);box-shadow:var(--neu);border-radius:var(--r-xl);padding:18px 18px 16px;display:flex;flex-direction:column;gap:10px;min-height:200px;position:relative;transition:transform .2s var(--ease), background-color .2s}
+.card:hover:not(:disabled){transform:translateY(-3px);background:#efeeeb}
+.card:disabled{cursor:not-allowed;opacity:.5}
+.card.deny{animation:deny .45s cubic-bezier(.36,.07,.19,.97)}
+.card .row{display:flex;justify-content:space-between;align-items:center}
+.card .ico{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;box-shadow:inset 0 0 0 1px var(--hair);color:var(--ink)}
+.card .ico svg{width:22px;height:22px}
+.card .nm{font:600 24px/1.05 var(--display);letter-spacing:-.035em;margin-top:6px}
+.card .bl{font-size:14.5px;line-height:1.4;color:var(--ink2);flex:1}
+.card .pr{display:flex;align-items:baseline;gap:6px;border-top:1px solid var(--hair);padding-top:12px}
+.card .pr b{font:600 24px/1 var(--display);letter-spacing:-.03em}
+.card .pr span{font-size:12px;color:var(--ink2)}
+.card .pr em{margin-left:auto;font-style:normal;font-family:var(--mono);font-size:11px;color:var(--threat)}
+.sh-foot{display:flex;justify-content:space-between;align-items:center;margin-top:20px;gap:12px;flex-wrap:wrap}
+.sh-foot .acts{display:flex;gap:10px}
+.sh-foot .btn{height:50px;padding:0 22px;font-size:15px}
+.p-sheet{width:min(560px,calc(100vw - 32px))}
+.p-sheet h2{font:600 56px/.9 var(--display);letter-spacing:-.05em;margin-top:10px}
+.p-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:24px 0 20px}
+.p-grid .btn{height:52px;font-size:15px;justify-content:space-between;padding:0 20px}
+.p-grid .btn.ink{grid-column:1/-1;justify-content:center;height:58px;font-size:18px}
+.p-grid .btn[aria-pressed="false"] .mono{color:var(--ink3)}
+.legend{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;border-top:1px solid var(--hair);padding-top:16px}
+.legend div{display:flex;flex-direction:column;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;color:var(--ink2)}
+.legend svg{width:26px;height:26px}
+
+@media (max-width:700px){
+  .sheet{top:auto;bottom:0;left:0;right:0;transform:none;width:auto;max-height:88vh;border-radius:calc(var(--r-xl) * 1.4) calc(var(--r-xl) * 1.4) 0 0;padding:24px 18px calc(18px + var(--sb));animation:sheetm .5s var(--ease) both}
+  .sh-head{margin-bottom:16px}
+  .sh-head h2{font-size:40px}
+  .sh-cred .v{font-size:34px}
+  .cards{grid-template-columns:1fr;gap:8px}
+  .card{min-height:0;padding:12px 14px;display:grid;grid-template-columns:40px 1fr auto;grid-template-areas:"ico nm pr" "ico bl pr";column-gap:12px;row-gap:2px;align-items:center}
+  .card .row{display:contents}
+  .card .row kbd{display:none}
+  .card .ico{grid-area:ico}
+  .card .nm{grid-area:nm;font-size:19px;margin:0}
+  .card .bl{grid-area:bl;font-size:13px}
+  .card .pr{grid-area:pr;border:0;padding:0;flex-direction:column;align-items:flex-end;gap:2px}
+  .card .pr em{margin:0}
+  .sh-foot .btn{height:48px;padding:0 16px}
+  .sh-foot .acts{flex:1}.sh-foot .acts .btn{flex:1}
+  .sh-foot .mono{display:none}
+  .p-sheet h2{font-size:44px}
+  .p-grid{grid-template-columns:1fr;gap:8px;margin:18px 0 16px}
+  .p-grid .btn{height:48px}
+  .legend{grid-template-columns:repeat(4,1fr);row-gap:12px}
+}
+@media (max-height:760px) and (min-width:701px){
+  .cards .card{min-height:170px}
+}

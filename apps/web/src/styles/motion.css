@@ -1,0 +1,5 @@
+/* Reduced motion: the system preference, or the in-game setting (html.rm) */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none !important;transition:none !important}
+}
+html.rm *,html.rm *::before,html.rm *::after{animation:none !important;transition:none !important}
