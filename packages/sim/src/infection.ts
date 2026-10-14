@@ -1,5 +1,7 @@
 import {
   EMIT_TICKS,
+  ROLLBACK_COOLDOWN,
+  ROLLBACK_DELAY,
   INCUBATION_TICKS,
   SLEEPER_INCUBATION_TICKS,
   VARIANTS,
@@ -125,7 +127,7 @@ export function onArrive(s: GameState, p: Packet, node: number): void {
 }
 
 /** Incubation timers and emission from infected agents. Runs before movement. */
-export function infectionTick(s: GameState): void {
+export function infectionTick(s: GameState, quarantine: (s: GameState, id: number, auto: boolean) => void): void {
   for (const n of s.nodes) {
     if (!n.active || n.kind !== 'agent') continue;
     if (n.infection === 1 && s.tick >= n.incubateUntil) {
@@ -136,6 +138,13 @@ export function infectionTick(s: GameState): void {
       s.infectedTotal++;
       s.waveInfections++;
       s.events.push({ tick: s.tick, e: 'infect', node: n.id });
+    }
+    if (
+      s.up.rollback && n.infection === 2 && s.tick >= n.infectedAt + ROLLBACK_DELAY && s.tick >= s.rollbackReadyAt
+    ) {
+      quarantine(s, n.id, true);
+      s.rollbackReadyAt = s.tick + ROLLBACK_COOLDOWN;
+      continue;
     }
     if (n.infection === 2 && n.quarantinedUntil <= s.tick && s.tick >= n.nextEmitAt) {
       spawnInject(s, n.id, 'plain', n.payload);

@@ -9,7 +9,7 @@ import { dist2, pointSegDist2, segmentsCross } from './geom';
 import type { GameState, SimEdge, SimNode } from './types';
 
 const CLEAR2 = NODE_CLEARANCE * NODE_CLEARANCE;
-const PEER_RANGE2 = (2.2 * MIN_SPACING) ** 2;
+const PEER_RANGE2 = (2.8 * MIN_SPACING) ** 2;
 
 export function otherEnd(e: SimEdge, n: number): number {
   return e.a === n ? e.b : e.a;
@@ -131,7 +131,7 @@ function clearOfEdges(s: GameState, n: SimNode): boolean {
 
 /** Returns the links a node would make on joining (empty = cannot join). */
 function plannedLinks(s: GameState, n: SimNode): SimNode[] {
-  const want = n.kind === 'agent' ? 3 : 2;
+  const want = 2;
   const others = nearestActive(s, n);
   if (others.length === 0) return [];
   const picked: SimNode[] = [];
@@ -225,4 +225,12 @@ export function addPeerEdges(s: GameState, count: number): void {
     addEdge(s, a.id, b.id, true);
     added++;
   }
+}
+
+/** Re-links an active node that lost all its edges. Returns false if it cannot. */
+export function relink(s: GameState, id: number): boolean {
+  const n = s.nodes[id]!;
+  const links = plannedLinks(s, n).slice(0, 1);
+  for (const m of links) addEdge(s, n.id, m.id, false);
+  return links.length > 0;
 }

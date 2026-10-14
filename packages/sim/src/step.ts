@@ -1,12 +1,17 @@
-import { applyAction } from './actions';
+import { applyAction, quarantineNode } from './actions';
+import { shopAction } from './shop';
+import { endWave } from './waves';
 import { generateBoard } from './board';
 import {
   MAX_RUN_TICKS,
   SCORE_COMBO,
   SIM_VERSION,
   STALL_TICKS,
+  SEVER_TICKS,
+  SEVER_TICKS_FAST,
   START_AGENTS,
   TUTORIAL_INJECT_TICK,
+  WAVE_TICKS,
 } from './constants';
 import { endGame } from './end';
 import { infectionTick, injectGoal, onArrive, revealPass, spawnInject } from './infection';
@@ -14,6 +19,7 @@ import { activateNode } from './graph';
 import {
   backlog,
   capacity,
+  destroy,
   dispatch,
   type FlowHooks,
   movePackets,
@@ -128,6 +134,23 @@ function checkStall(s: GameState): void {
   }
 }
 
+/** Circuit Breaker: a link carrying two or more injections trips itself. */
+function tripBreakers(s: GameState): void {
+  if (!s.up.breaker) return;
+  const counts = new Map<number, number>();
+  for (const p of s.packets) {
+    if (!p.dead && p.kind === 'inject' && p.edge >= 0) counts.set(p.edge, (counts.get(p.edge) ?? 0) + 1);
+  }
+  for (const [eid, n] of [...counts].sort((x, y) => x[0] - y[0])) {
+    if (n < 2) continue;
+    const e = s.edges[eid]!;
+    for (const p of s.packets) if (!p.dead && p.edge === eid) destroy(s, p, 'breaker');
+    e.severedUntil = s.tick + (s.up.fastHeal ? SEVER_TICKS_FAST : SEVER_TICKS);
+    e.gapT = -1;
+    s.events.push({ tick: s.tick, e: 'cut', edge: eid, t: -1 });
+  }
+}
+
 function advance(s: GameState): void {
   healEdges(s);
   if (s.wave === 1 && !s.tutorialDone && s.tick === TUTORIAL_INJECT_TICK) {
@@ -136,13 +159,17 @@ function advance(s: GameState): void {
   }
   spawnTasks(s);
   dispatch(s);
-  infectionTick(s);
+  infectionTick(s, quarantineNode);
   movePackets(s, hooks);
-  if (s.phase === 'play') revealPass(s);
+  if (s.phase === 'play') {
+    tripBreakers(s);
+    revealPass(s);
+  }
   sweepDead(s);
   if (s.phase === 'play') checkStall(s);
   s.tick++;
   if (s.phase === 'play' && s.tick >= MAX_RUN_TICKS) endGame(s, 'timeout');
+  if (s.phase === 'play' && s.tick - s.waveStart >= WAVE_TICKS) endWave(s);
 }
 
 /**
@@ -152,7 +179,7 @@ function advance(s: GameState): void {
 export function step(s: GameState, actions: readonly Action[]): SimEvent[] {
   s.events = [];
   const before = s.intercepts;
-  for (const a of actions) applyAction(s, a, () => false);
+  for (const a of actions) applyAction(s, a, shopAction);
   const n = s.intercepts - before;
   if (n >= 2) {
     s.score += SCORE_COMBO * (n - 1);
