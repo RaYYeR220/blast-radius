@@ -1,0 +1,27 @@
+node_modules/
+dist/
+.vercel/
+.env*
+!.env.example
+coverage/
+playwright-report/
+test-results/
+*.log
+.DS_Store
+# working material never ships
+BRIEF.md
+ALTERNATIVES.md
+.remember/
+MEMORY.md
+.claude/
+.agents/
+.superpowers/
+superpowers/
+docs/superpowers/
+*-internal/
+*-backup*
+*.bundle
+ui-prototypes/
+mockups/
+design-ref/
+variants/
