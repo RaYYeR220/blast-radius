@@ -33,6 +33,7 @@ for (const route of ROUTES) {
     target: 'node22',
     outfile: resolve(dir, 'index.mjs'),
     legalComments: 'none',
+    minify: true,
     // some dependencies still call require() for Node built-ins
     banner: { js: "import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);" },
     logLevel: 'warning',
