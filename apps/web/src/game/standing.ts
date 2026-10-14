@@ -10,7 +10,7 @@ export function hudTag(run: Run, today: string): string {
   const t = run.ticket;
   if (run.bot) return `seed · ${t.seed} · autoplay`;
   if (t.mode === 'daily' && !t.unranked) return `daily · ${run.day(today)}`;
-  if (t.unranked === 'offline') return 'practice · the board is offline';
+  if (t.unranked === 'offline') return 'practice · could not reach the board';
   if (t.unranked === 'custom') return `seed · ${t.seed} · practice`;
   return `seed · ${t.seed}`;
 }

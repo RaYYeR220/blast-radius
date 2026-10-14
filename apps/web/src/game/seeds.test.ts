@@ -61,4 +61,34 @@ describe('SeedBank', () => {
   it('makes local seeds the server would accept', () => {
     expect(localSeed(() => 0.5, 1_760_000_000_000)).toMatch(/^[\w.-]{1,64}$/);
   });
+  it('waits briefly for a seed already on its way, so a quick Play still ranks', async () => {
+    let answer!: (r: Awaited<ReturnType<SeedFn>>) => void;
+    const bank = new SeedBank({ seed: () => new Promise((r) => (answer = r)) });
+    bank.prefetch();
+    const settled = bank.settle(1000);
+    answer({ ok: true, seed: 'e-late', token: 't' });
+    await settled;
+    expect(bank.ticket('endless')).toEqual({ mode: 'endless', seed: 'e-late', token: 't', unranked: null });
+  });
+
+  it('stops waiting after the limit and plays locally', async () => {
+    vi.useFakeTimers();
+    try {
+      const bank = new SeedBank({ seed: () => new Promise(() => {}) });
+      bank.prefetch();
+      const settled = bank.settle(1500);
+      await vi.advanceTimersByTimeAsync(1500);
+      await settled;
+      expect(bank.ticket('endless').unranked).toBe('offline');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not wait when nothing is in flight', async () => {
+    const bank = new SeedBank({ seed: async () => ({ ok: false, offline: true }) });
+    const t0 = Date.now();
+    await bank.settle(5000);
+    expect(Date.now() - t0).toBeLessThan(100);
+  });
 });

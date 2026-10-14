@@ -21,7 +21,7 @@ describe('hudTag', () => {
   it('says what kind of run is on screen', () => {
     expect(hudTag(new Run({ mode: 'daily', seed: 'daily-2026-10-14', unranked: null }, null, false), today)).toBe('daily · 2026-10-14');
     expect(hudTag(new Run({ mode: 'endless', seed: 'e-abc', token: 't', unranked: null }, null, false), today)).toBe('seed · e-abc');
-    expect(hudTag(new Run({ mode: 'endless', seed: 'local-x', unranked: 'offline' }, null, false), today)).toBe('practice · the board is offline');
+    expect(hudTag(new Run({ mode: 'endless', seed: 'local-x', unranked: 'offline' }, null, false), today)).toBe('practice · could not reach the board');
     expect(hudTag(new Run({ mode: 'endless', seed: 'shot-1', unranked: 'custom' }, null, false), today)).toBe('seed · shot-1 · practice');
     expect(hudTag(new Run({ mode: 'endless', seed: 'shot-1', unranked: 'autoplay' }, 'idle', false), today)).toBe('seed · shot-1 · autoplay');
   });

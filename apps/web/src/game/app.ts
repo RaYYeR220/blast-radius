@@ -31,6 +31,8 @@ import { Watch } from './watch';
 
 const BOTS: readonly string[] = ['heuristic', 'sloppy', 'idle'];
 const OVERLAYS: readonly Screen[] = ['board', 'agents', 'archive'];
+/** How long Play waits for an endless seed already on its way before starting unranked. */
+const SEED_WAIT_MS = 1500;
 /** How long the end of a run holds on the board before the report slides in. */
 const reportDelay = (s: GameState) => (s.end === 'leak' ? 1900 : 1400);
 
@@ -53,6 +55,8 @@ export class App implements KeyTarget, UiHost {
   attract: Attract | null = null;
   /** What the board pages are drawn over: the bot game, or the run whose report opened them. */
   private backdrop: 'attract' | 'run' = 'attract';
+  /** Bumped by every screen change, so a run waiting on its seed doesn't start after the player has moved on. */
+  private starting = 0;
   private readonly heard = new WeakSet<Session>();
   private lastNow = performance.now();
   private lastPhase: Phase = 'play';
@@ -116,6 +120,7 @@ export class App implements KeyTarget, UiHost {
       });
     }
     void document.fonts?.ready.then(() => this.measureType());
+    this.seeds.prefetch();
     const first = this.nav.start();
     this.loop.start();
     return first;
@@ -304,6 +309,7 @@ export class App implements KeyTarget, UiHost {
   private hideAll(): void {
     for (const s of Object.values(this.ui)) s.hide();
     this.boards.cancel();
+    this.starting++;
   }
 
   private showTitle(): void {
@@ -318,7 +324,13 @@ export class App implements KeyTarget, UiHost {
   }
 
   private startRun(mode: 'endless' | 'daily'): void {
-    this.begin(this.seeds.ticket(mode, { custom: this.customSeed, autoplay: !!this.autoplay }), this.autoplay);
+    const go = () => this.begin(this.seeds.ticket(mode, { custom: this.customSeed, autoplay: !!this.autoplay }), this.autoplay);
+    if (mode === 'daily' || this.customSeed || this.autoplay || this.seeds.hasSeed) return void go();
+    // a seed still on its way is worth a moment: without it the run can't be ranked
+    const ticket = ++this.starting;
+    void this.seeds.settle(SEED_WAIT_MS).then(() => {
+      if (ticket === this.starting) go();
+    });
   }
 
   private begin(ticket: Ticket, bot: BotKind | null): Run {

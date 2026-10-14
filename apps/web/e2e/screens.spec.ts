@@ -109,3 +109,12 @@ test('leaderboard rows open their replay, which plays, seeks and ends in its rep
   await expect(page).toHaveURL(/#\/board$/);
   expect(errors).toEqual([]);
 });
+
+test('Play straight from a link still waits for the server seed that is on its way', async ({ page }) => {
+  await page.route('**/api/seed', async (r) => {
+    await new Promise((done) => setTimeout(done, 700));
+    await r.fulfill({ json: { seed: 'e2e-late', token: 'issued-token' } });
+  });
+  await page.goto('/#/play');
+  await expect(page.locator('[data-seed]')).toHaveText('seed · e2e-late');
+});

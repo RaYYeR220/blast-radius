@@ -32,7 +32,7 @@ export function localSeed(rand: () => number = Math.random, now: number = Date.n
  */
 export class SeedBank {
   private ready: Issued | null = null;
-  private inFlight = false;
+  private inFlight: Promise<void> | null = null;
 
   constructor(
     private readonly api: Pick<Api, 'seed'>,
@@ -45,11 +45,16 @@ export class SeedBank {
 
   prefetch(): void {
     if (this.inFlight || this.hasSeed) return;
-    this.inFlight = true;
-    void this.api.seed().then((r) => {
-      this.inFlight = false;
+    this.inFlight = this.api.seed().then((r) => {
+      this.inFlight = null;
       if (r.ok && typeof r.seed === 'string' && typeof r.token === 'string') this.ready = { seed: r.seed, token: r.token, at: this.now() };
     });
+  }
+
+  /** Resolves once a seed on its way has arrived, or after `ms`; at once when none is on its way. */
+  settle(ms: number): Promise<void> {
+    if (!this.inFlight || this.hasSeed) return Promise.resolve();
+    return Promise.race([this.inFlight, new Promise<void>((r) => setTimeout(r, ms))]);
   }
 
   /** The ready seed, used once; starts fetching the next. */

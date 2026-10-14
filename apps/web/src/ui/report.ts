@@ -55,7 +55,7 @@ const MARKUP = `
 const SEV: Record<string, [string, boolean]> = { leak: ['LEAK · SEV-1', false], stall: ['STALL · SEV-2', true] };
 
 const UNRANKED: Record<Unranked, [string, string]> = {
-  offline: ['Practice', 'The board was offline when this run started, so it is not ranked.'],
+  offline: ['Practice', 'The game could not reach the board when this run started, so it is not ranked.'],
   custom: ['Practice', 'This run used a custom seed, so it is not ranked.'],
   autoplay: ['Autoplay', 'A bot played this run, so it is not ranked.'],
 };
