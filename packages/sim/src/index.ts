@@ -14,3 +14,4 @@ export { backlog, capacity, posFromA } from './packets';
 export { quarantineCost, bladeHalf } from './actions';
 export { otherEnd, edgeUsable } from './graph';
 export { segmentsCross, pointSegDist2, dist2 } from './geom';
+export { snapshot, restore } from './snapshot';

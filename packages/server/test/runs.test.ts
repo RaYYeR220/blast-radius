@@ -1,14 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { getRun, leaderboard, submitRun } from '../src/runs';
+import { type Deps, getRun, issueSeed, leaderboard, submitRun } from '../src/runs';
 import { deps, playToEnd } from './helpers';
 
 const body = (o: object) => JSON.stringify(o);
 
+/** An endless run on a seed the server issued, ready to submit. */
+async function endless(d: Deps, bot: 'idle' | 'sloppy' = 'idle') {
+  const t = (await issueSeed(d, '7.7.7.7')).body as { seed: string; token: string };
+  return { ...playToEnd(t.seed, 'endless', bot), token: t.token };
+}
+
 describe('submitRun', () => {
   it('accepts an honest endless run and ranks it', async () => {
     const d = deps();
-    const { replay, score } = playToEnd('e-1');
-    const r = await submitRun(d, '1.1.1.1', body({ replay, score, name: 'ada' }));
+    const { replay, score, token } = await endless(d);
+    const r = await submitRun(d, '1.1.1.1', body({ replay, score, token, name: 'ada' }));
     expect(r.status).toBe(200);
     expect(r.body).toMatchObject({ score, rank: 1, board: 'endless' });
     const stored = d.repo.runs[0]!;
@@ -17,15 +23,17 @@ describe('submitRun', () => {
   });
 
   it('rejects a tampered score', async () => {
-    const { replay, score } = playToEnd('e-2');
-    const r = await submitRun(deps(), '1.1.1.1', body({ replay, score: score + 50 }));
+    const d = deps();
+    const { replay, score, token } = await endless(d);
+    const r = await submitRun(d, '1.1.1.1', body({ replay, score: score + 50, token }));
     expect(r.status).toBe(422);
   });
 
   it('rejects a replay with an illegal action', async () => {
-    const { replay, score } = playToEnd('e-3');
+    const d = deps();
+    const { replay, score, token } = await endless(d);
     replay.actions.unshift({ tick: 0, a: { type: 'quarantine', node: 0 } });
-    expect((await submitRun(deps(), '1.1.1.1', body({ replay, score }))).status).toBe(422);
+    expect((await submitRun(d, '1.1.1.1', body({ replay, score, token }))).status).toBe(422);
   });
 
   it('only takes today\'s daily, with a short grace for yesterday', async () => {
@@ -62,8 +70,8 @@ describe('leaderboard', () => {
     const d = deps();
     const ids: string[] = [];
     for (let i = 0; i < 4; i++) {
-      const { replay, score } = playToEnd(`lb-${i}`, 'endless', i % 2 ? 'sloppy' : 'idle');
-      const r = await submitRun(d, `10.0.0.${i}`, body({ replay, score, name: `p${i}xx` }));
+      const { replay, score, token } = await endless(d, i % 2 ? 'sloppy' : 'idle');
+      const r = await submitRun(d, `10.0.0.${i}`, body({ replay, score, token, name: `p${i}xx` }));
       ids.push((r.body as { id: string }).id);
     }
     const res = await leaderboard(d, new URLSearchParams({ board: 'endless', limit: '2', around: ids[0]! }));
@@ -84,11 +92,11 @@ describe('leaderboard', () => {
 describe('getRun', () => {
   it('returns a stored replay, 404s unknown ids and 400s junk', async () => {
     const d = deps();
-    const { replay, score } = playToEnd('g-1');
-    const id = ((await submitRun(d, '1.1.1.1', body({ replay, score }))).body as { id: string }).id;
+    const { replay, score, token } = await endless(d);
+    const id = ((await submitRun(d, '1.1.1.1', body({ replay, score, token }))).body as { id: string }).id;
     const ok = await getRun(d, id);
     expect(ok.status).toBe(200);
-    expect((ok.body as { replay: { seed: string } }).replay.seed).toBe('g-1');
+    expect((ok.body as { replay: { seed: string } }).replay.seed).toBe(replay.seed);
     expect((await getRun(d, '00000000-0000-4000-8000-000000000000')).status).toBe(404);
     expect((await getRun(d, 'drop table')).status).toBe(400);
   });

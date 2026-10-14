@@ -60,6 +60,13 @@ export class Rng {
     return arr[this.int(arr.length)] as T;
   }
 
+  /** Resumes a stream from `snapshot()`, bit for bit. */
+  static fromSnapshot(words: readonly number[]): Rng {
+    const r = new Rng('');
+    [r.a, r.b, r.c, r.d] = words.map((w) => w | 0) as [number, number, number, number];
+    return r;
+  }
+
   snapshot(): [number, number, number, number] {
     return [this.a >>> 0, this.b >>> 0, this.c >>> 0, this.d >>> 0];
   }
