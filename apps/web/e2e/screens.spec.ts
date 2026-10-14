@@ -25,6 +25,7 @@ const storedRun = {
 
 test('every page opens cleanly while the boards are offline', async ({ page }) => {
   const errors = watchErrors(page);
+  await page.route('**/api/**', (r) => r.abort());
   await page.goto('/#/board');
   await expect(page.getByText('The board is offline.')).toBeVisible();
   await page.goto('/#/agents');
