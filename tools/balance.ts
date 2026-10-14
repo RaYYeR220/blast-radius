@@ -3,7 +3,7 @@ import { type BotKind, runBot } from '@blast/sim/bots';
 
 const SEEDS = Number(process.argv[2] ?? 200);
 const KINDS: BotKind[] = ['idle', 'denyAll', 'sloppy', 'heuristic'];
-const pct = (n: number) => `${Math.round(n * 100)}%`;
+const pct = (n: number) => `${Math.round(n * 1000) / 10}%`;
 const at = (xs: number[], q: number) => xs[Math.min(xs.length - 1, Math.floor(xs.length * q))]!;
 
 const rows = ['| Bot | Leak | Stall | Wave p10 / median / p90 | Median run | Median score |', '|---|---|---|---|---|---|'];
