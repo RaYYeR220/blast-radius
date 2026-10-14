@@ -1,9 +1,10 @@
 import { backlog, capacity, createGame, type GameOptions, quarantineCost, UPGRADES } from '@blast/sim';
 import { type BotKind, makeBot } from '@blast/sim/bots';
+import { Camera } from './game/camera';
 import { Blade, tapToAction } from './game/input';
 import { GameLoop } from './game/loop';
 import { Session } from './game/session';
-import { fitView, toBoard, type View } from './game/view';
+import { fitView, toBoard, toScreen, type View } from './game/view';
 import { GrayboxRenderer } from './render/graybox';
 
 const params = new URLSearchParams(location.search);
@@ -17,6 +18,9 @@ panel.style.cssText =
 document.body.append(hud, panel);
 document.body.style.cssText = 'margin:0;background:#11100e;overflow:hidden;touch-action:none;user-select:none';
 
+const INSETS = { top: 56, right: 12, bottom: 56, left: 12 };
+const camera = new Camera();
+let dpr = 1;
 let view: View = fitView(innerWidth, innerHeight, 1);
 const renderer = new GrayboxRenderer(canvas);
 const blade = new Blade({ toBoard: (x, y) => toBoard(view, x, y) });
@@ -29,15 +33,15 @@ function newRun(): void {
   session.on((e) => renderer.onEvent(session.state, e));
   const kind = params.get('autoplay') as BotKind | null;
   autoplay = kind ? makeBot(kind, opts.seed) : null;
+  camera.reset();
   panel.replaceChildren();
 }
 
 function resize(): void {
-  const dpr = Math.min(devicePixelRatio || 1, 2);
+  dpr = Math.min(devicePixelRatio || 1, 2);
   canvas.width = Math.round(innerWidth * dpr);
   canvas.height = Math.round(innerHeight * dpr);
   canvas.style.cssText = `width:${innerWidth}px;height:${innerHeight}px;display:block`;
-  view = fitView(innerWidth, innerHeight, dpr, { top: 56, right: 12, bottom: 56, left: 12 });
 }
 
 function button(label: string, onClick: () => void): HTMLButtonElement {
@@ -72,6 +76,7 @@ const loop = new GameLoop({
   },
   onRender: (alpha) => {
     const s = session.state;
+    view = fitView(innerWidth, innerHeight, dpr, INSETS, camera.update(s));
     if (autoplay && s.phase === 'shop') session.act(autoplay(s));
     syncPanels();
     hud.textContent =
@@ -114,4 +119,10 @@ addEventListener('resize', resize);
 resize();
 newRun();
 loop.start();
-if (params.has('debug')) (window as unknown as { __blast: unknown }).__blast = { get session() { return session; }, loop };
+if (params.has('debug')) {
+  (window as unknown as { __blast: unknown }).__blast = {
+    get session() { return session; },
+    loop,
+    toScreen: (bx: number, by: number) => toScreen(view, bx, by),
+  };
+}

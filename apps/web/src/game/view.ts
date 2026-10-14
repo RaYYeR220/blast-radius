@@ -7,10 +7,18 @@ export interface Insets {
   left: number;
 }
 
+/** A window onto the board, in board units. */
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 /**
- * Maps the 1600×1000 board onto the screen. On portrait screens the board is
- * turned 90° clockwise so it fills the tall viewport; text is drawn upright
- * by converting to screen space first.
+ * Maps a window of the 1600×1000 board onto the screen. On portrait screens
+ * the board is turned 90° clockwise so it fills the tall viewport; text is
+ * drawn upright by converting to screen space first.
  */
 export interface View {
   cssW: number;
@@ -21,41 +29,47 @@ export interface View {
   scale: number;
   ox: number;
   oy: number;
+  rect: Rect;
 }
 
 const NO_INSETS: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
+export const FULL_BOARD: Rect = { x: 0, y: 0, w: BOARD_W, h: BOARD_H };
 
-export function fitView(cssW: number, cssH: number, dpr: number, insets: Insets = NO_INSETS): View {
+export function fitView(cssW: number, cssH: number, dpr: number, insets: Insets = NO_INSETS, rect: Rect = FULL_BOARD): View {
   const rotate = cssH > cssW;
   const availW = Math.max(1, cssW - insets.left - insets.right);
   const availH = Math.max(1, cssH - insets.top - insets.bottom);
-  const boardW = rotate ? BOARD_H : BOARD_W;
-  const boardH = rotate ? BOARD_W : BOARD_H;
-  const scale = Math.min(availW / boardW, availH / boardH);
+  const w = rotate ? rect.h : rect.w;
+  const h = rotate ? rect.w : rect.h;
+  const scale = Math.min(availW / w, availH / h);
   return {
     cssW,
     cssH,
     dpr,
     rotate,
     scale,
-    ox: insets.left + (availW - boardW * scale) / 2,
-    oy: insets.top + (availH - boardH * scale) / 2,
+    ox: insets.left + (availW - w * scale) / 2,
+    oy: insets.top + (availH - h * scale) / 2,
+    rect,
   };
 }
 
 export function toScreen(v: View, bx: number, by: number): { x: number; y: number } {
-  if (!v.rotate) return { x: v.ox + bx * v.scale, y: v.oy + by * v.scale };
-  return { x: v.ox + (BOARD_H - by) * v.scale, y: v.oy + bx * v.scale };
+  const r = v.rect;
+  if (!v.rotate) return { x: v.ox + (bx - r.x) * v.scale, y: v.oy + (by - r.y) * v.scale };
+  return { x: v.ox + (r.y + r.h - by) * v.scale, y: v.oy + (bx - r.x) * v.scale };
 }
 
 export function toBoard(v: View, sx: number, sy: number): { x: number; y: number } {
-  if (!v.rotate) return { x: (sx - v.ox) / v.scale, y: (sy - v.oy) / v.scale };
-  return { x: (sy - v.oy) / v.scale, y: BOARD_H - (sx - v.ox) / v.scale };
+  const r = v.rect;
+  if (!v.rotate) return { x: r.x + (sx - v.ox) / v.scale, y: r.y + (sy - v.oy) / v.scale };
+  return { x: r.x + (sy - v.oy) / v.scale, y: r.y + r.h - (sx - v.ox) / v.scale };
 }
 
 /** Canvas transform (device pixels) that lets the renderer draw in board units. */
 export function boardTransform(v: View): [number, number, number, number, number, number] {
   const s = v.scale * v.dpr;
-  if (!v.rotate) return [s, 0, 0, s, v.ox * v.dpr, v.oy * v.dpr];
-  return [0, s, -s, 0, (v.ox + BOARD_H * v.scale) * v.dpr, v.oy * v.dpr];
+  const r = v.rect;
+  if (!v.rotate) return [s, 0, 0, s, (v.ox - r.x * v.scale) * v.dpr, (v.oy - r.y * v.scale) * v.dpr];
+  return [0, s, -s, 0, (v.ox + (r.y + r.h) * v.scale) * v.dpr, (v.oy - r.x * v.scale) * v.dpr];
 }
