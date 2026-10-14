@@ -6,6 +6,8 @@ import {
   type GameState,
   type Packet,
   posFromA,
+  QUARANTINE_COST_STEP,
+  quarantineCost,
   Recorder,
   type Replay,
   type SimEvent,
@@ -19,6 +21,31 @@ export interface Sample {
 }
 
 type Listener = (e: SimEvent) => void;
+
+/**
+ * The queued play actions the rules will accept, in order. Taps and swipes are
+ * checked when they happen, but several can land in one tick (a double tap, a
+ * slow frame), and any action the sim rejects would make the run unverifiable.
+ */
+export function admissible(s: GameState, actions: readonly Action[]): Action[] {
+  const out: Action[] = [];
+  const held = new Set<number>();
+  let credits = s.credits;
+  for (const a of actions) {
+    if (a.type === 'cut') {
+      if (s.edges[a.edge]?.removed === false) out.push(a);
+    } else if (a.type === 'quarantine') {
+      const n = s.nodes[a.node];
+      if (!n?.active || n.kind !== 'agent' || n.quarantinedUntil > s.tick || held.has(n.id)) continue;
+      const cost = quarantineCost(s) + QUARANTINE_COST_STEP * held.size;
+      if (credits < cost) continue;
+      credits -= cost;
+      held.add(n.id);
+      out.push(a);
+    }
+  }
+  return out;
+}
 
 /** One run: the live state, its replay log, and what the renderer needs between ticks. */
 export class Session {
@@ -56,7 +83,7 @@ export class Session {
     if (s.phase !== 'play') return;
     this.prev.clear();
     for (const p of s.packets) this.prev.set(p.id, packetXY(s, p));
-    const actions = this.queued;
+    const actions = admissible(s, this.queued);
     this.queued = [];
     this.emit(this.rec.step(actions));
     if (s.tick % 60 === 0) {
