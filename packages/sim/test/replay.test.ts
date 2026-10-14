@@ -160,3 +160,18 @@ describe('canonicalActions', () => {
 });
 
 type ReplayEntryLike = { tick: number; a: unknown };
+
+describe('effective actions', () => {
+  it('ignore no-op padding and rejected actions', () => {
+    const cuts = [0, 1, 2].map((edge, i) => ({ tick: 10 * (i + 1), a: { type: 'cut', edge, t: 500 } as Action }));
+    const plain = runReplay({ v: SIM_VERSION, mode: 'daily', seed: 'eff', actions: cuts }).state;
+    const padded = runReplay({
+      v: SIM_VERSION,
+      mode: 'daily',
+      seed: 'eff',
+      actions: cuts.flatMap((e) => [e, { tick: e.tick, a: { ...e.a } }, { tick: e.tick, a: { type: 'skip' } as Action }]),
+    }).state;
+    expect(plain.effective).toBe(3);
+    expect(padded.effective).toBe(3);
+  });
+});

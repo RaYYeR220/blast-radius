@@ -161,6 +161,8 @@ export interface GameState {
   rollbackReadyAt: number;
   nextWebEmitAt: number;
   waveQuarantines: number;
+  /** Actions that changed the game (no-ops and rejects excluded). */
+  effective: number;
   tutorialDone: boolean;
   up: Record<UpgradeId, boolean>;
   offers: Offer[];

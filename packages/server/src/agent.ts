@@ -156,12 +156,12 @@ export async function submitAgentRun(d: Deps, ip: string, body: { run?: unknown;
     await release();
     return fail(422, verdict.reason);
   }
-  const outcomeHash = await outcomeHashOf(row.seed, row.ownerHash, verdict.summary, row.actions.length);
+  const outcomeHash = await outcomeHashOf(row.seed, row.ownerHash, verdict.summary);
   if (await d.repo.seen(outcomeHash, null)) return fail(409, 'this exact run is already on the board');
   const id = crypto.randomUUID();
   const createdAt = new Date(d.now()).toISOString();
   const s = verdict.summary;
-  const name = await nameFor(d, typeof body.name === 'string' ? body.name : row.agentName, row.ownerHash, id.slice(0, 4));
+  const name = await nameFor(d, typeof body.name === 'string' ? body.name : row.agentName, row.ownerHash, id.slice(0, 4), 'agent');
   if (!name) {
     await release();
     return fail(409, 'that name belongs to someone else; pass your key or pick another');

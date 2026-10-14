@@ -77,3 +77,28 @@ describe('copied replays', () => {
     expect(cleanName('ANON-abcd', 'zzzz')).toBe('anon-zzzz');
   });
 });
+
+describe('more ways to dodge the copy check', () => {
+  it('stripping no-op cuts from a copied run does not make it "trivial"', async () => {
+    const { runReplay } = await import('@blast/sim');
+    const d = deps();
+    // three real cuts early on, then nothing: the tutorial injection leaks in wave 1
+    const real = [0, 1, 2].map((edge, i) => ({ tick: 10 * (i + 1), a: { type: 'cut' as const, edge, t: 500 } }));
+    const idle = { v: 1, mode: 'daily' as const, seed: 'daily-2026-10-15', actions: real };
+    const ended = runReplay(idle).state;
+    expect(ended.end).toBe('leak');
+    expect(ended.effective).toBe(3);
+    const padded = { ...idle, actions: real.flatMap((e) => [e, { tick: e.tick, a: { ...e.a } }]) };
+    expect((await send(d, { replay: padded, score: ended.score }, 'ada', OWNER_A)).status).toBe(200);
+    // the thief drops the no-op repeats: three real actions remain, so it is still a copy
+    expect((await send(d, { replay: idle, score: ended.score }, 'thief', OWNER_B)).status).toBe(409);
+  });
+
+  it('keeps human and agent names apart', async () => {
+    const d = deps();
+    const { run } = (await startRun(d, '1.1.1.1', { name: 'ada' })).body as { run: string };
+    for (let i = 0; i < 400; i++) if (((await actRun(d, '1.1.1.1', { run, actions: [], advance: 120 })).body as { over: boolean }).over) break;
+    expect((await submitAgentRun(d, '1.1.1.1', { run })).status).toBe(200);
+    expect((await send(d, daily(), 'ada', OWNER_A)).status).toBe(200);
+  });
+});

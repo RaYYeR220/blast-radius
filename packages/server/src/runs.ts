@@ -57,8 +57,8 @@ const TRIVIAL_ACTIONS = 3;
  * on its outcome alone, so a copied replay is refused whoever submits it;
  * a near-trivial run is keyed per owner, so identical idle runs can both rank.
  */
-export function outcomeHashOf(seed: string, ownerHash: string, s: RunSummary, actionCount: number): Promise<string> {
-  const who = actionCount >= TRIVIAL_ACTIONS ? 'anyone' : ownerHash;
+export function outcomeHashOf(seed: string, ownerHash: string, s: RunSummary): Promise<string> {
+  const who = s.effectiveActions >= TRIVIAL_ACTIONS ? 'anyone' : ownerHash;
   return sha256([seed, who, s.score, s.durationTicks, s.shipped, s.intercepts, s.infected, s.wave, s.endedBy].join('|'));
 }
 
@@ -70,10 +70,17 @@ export function ownerHashOf(salt: string, scope: string, key: string): Promise<s
 }
 
 /** Gives the run its display name: an anonymous tag, or a name this owner holds. */
-export async function nameFor(d: Deps, raw: unknown, ownerHash: string, tag: string): Promise<string | null> {
+export async function nameFor(
+  d: Deps,
+  raw: unknown,
+  ownerHash: string,
+  tag: string,
+  space: 'human' | 'agent',
+): Promise<string | null> {
   const name = cleanName(typeof raw === 'string' ? raw : '', tag);
   if (name.startsWith('anon-')) return name;
-  return (await d.repo.claimName(name, ownerHash)) === 'ok' ? name : null;
+  // humans and agents have separate name spaces, so neither can squat the other's names
+  return (await d.repo.claimName(`${space}:${name}`, ownerHash)) === 'ok' ? name : null;
 }
 
 /** Endless seeds are handed out by the server, so nobody ranks a seed they picked by hand. */
@@ -139,10 +146,10 @@ export async function submitRun(d: Deps, ip: string, raw: string): Promise<ApiRe
   const verdict = verifyReplay(canonical, { score: sub.score });
   if (!verdict.ok) return fail(422, verdict.reason);
   const ownerHash = await ownerHashOf(d.salt, 'device', sub.owner);
-  const outcomeHash = await outcomeHashOf(replay.seed, ownerHash, verdict.summary, canonical.actions.length);
+  const outcomeHash = await outcomeHashOf(replay.seed, ownerHash, verdict.summary);
   if (await d.repo.seen(outcomeHash, replay.mode === 'endless' ? replay.seed : null)) return fail(409, 'already on the board');
   const id = crypto.randomUUID();
-  const name = await nameFor(d, sub.name, ownerHash, id.slice(0, 4));
+  const name = await nameFor(d, sub.name, ownerHash, id.slice(0, 4), 'human');
   if (!name) return fail(409, 'that name belongs to someone else; pick another');
   const board = replay.mode as Extract<Board, 'daily' | 'endless'>; // checked in parseSubmission
   const day = board === 'daily' ? replay.seed.slice('daily-'.length) : null;

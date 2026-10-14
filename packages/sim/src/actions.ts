@@ -41,6 +41,7 @@ function cut(s: GameState, a: Extract<Action, { type: 'cut' }>): boolean {
     if (Math.abs(posFromA(s, p) - gap) * e.len <= reach) destroy(s, p, 'cut');
   }
   s.events.push({ tick: s.tick, e: 'cut', edge: e.id, t: a.t });
+  s.effective++;
   return true;
 }
 
@@ -65,6 +66,7 @@ function quarantine(s: GameState, a: Extract<Action, { type: 'quarantine' }>): b
   if (s.credits < cost) return reject(s, a, 'not enough credits');
   s.credits -= cost;
   s.waveQuarantines++;
+  s.effective++;
   quarantineNode(s, n.id, false);
   return true;
 }
@@ -82,7 +84,10 @@ export function applyAction(s: GameState, a: Action, shop: ShopHandler): boolean
     case 'pick':
     case 'reroll':
     case 'skip':
-      return s.phase === 'shop' ? shop(s, a) : reject(s, a, 'shop is closed');
+      if (s.phase !== 'shop') return reject(s, a, 'shop is closed');
+      if (!shop(s, a)) return false;
+      s.effective++;
+      return true;
     default:
       return reject(s, a, 'unknown action');
   }

@@ -27,6 +27,8 @@ export interface RunSummary {
   leakPath: number[] | null;
   /** Hash of the final state: two logs that end identically are the same run. */
   finalHash: string;
+  /** Actions that changed the game; padding a log with no-ops never moves this. */
+  effectiveActions: number;
 }
 
 export const MAX_REPLAY_ENTRIES = 20_000;
@@ -116,6 +118,7 @@ export function summarize(s: GameState): RunSummary {
     rootPayload: s.rootPayload,
     leakPath: s.leakPath,
     finalHash: stateHash(s),
+    effectiveActions: s.effective,
   };
 }
 
