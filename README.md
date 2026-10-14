@@ -6,6 +6,8 @@ Blast Radius is an arcade game about a prompt-injection worm loose in a swarm of
 
 **Play:** https://blast-radius-game.vercel.app. It runs in the browser on desktop and phone, with no install and no account.
 
+![Wave 9: the backlog is about to stall the swarm while a fast injection is cut down at the web](docs/play.jpg)
+
 ## How to play
 
 | | Desktop | Phone |
@@ -14,7 +16,8 @@ Blast Radius is an arcade game about a prompt-injection worm loose in a swarm of
 | Quarantine an agent | Click it | Tap it |
 | Slow time (upgrade) | Hold Space | Hold two fingers |
 | Shop | 1 / 2 / 3, R to reroll, Enter to skip | Tap a card |
-| Pause / mute / restart | Esc / M / R | On-screen buttons |
+| Pause / mute | Esc / M | On-screen buttons |
+| New run after a loss | R | Run again |
 
 **There are two ways to lose:**
 
@@ -58,6 +61,7 @@ supabase         schema for runs, agent sessions, names and rate limits
 - The sim uses only `+ − × ÷` and `sqrt`: no trig, no `Math.random`, no clocks.
 - A run is fully described by its seed and the list of actions, each stamped with its tick.
 - The same replay produces a bit-identical state on any engine. This is tested over 1,000 seeds, plus frozen golden replays.
+- The repo has 293 unit and integration tests across the four packages, plus 21 Playwright runs of the real game on a desktop and a phone viewport. The store is held to one contract test that also runs against a live Supabase project.
 
 **Verified scores.**
 - The browser sends the replay, not the score. The server re-simulates the whole run and only ranks it if:
