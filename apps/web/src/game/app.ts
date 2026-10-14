@@ -312,6 +312,8 @@ export class App implements KeyTarget, UiHost {
     for (const s of Object.values(this.ui)) s.hide();
     this.boards.cancel();
     this.starting++;
+    // the pause sheet is gone with the rest, so time runs again (a hidden tab stays paused)
+    if (this.loop.paused && document.visibilityState === 'visible') this.loop.resume();
   }
 
   private showTitle(): void {
@@ -382,7 +384,7 @@ export class App implements KeyTarget, UiHost {
 
   /** A page over the board: over the ended run if its report opened it, otherwise over the bot game. */
   private overlay(screen: Screen): void {
-    const overRun = !!this.run?.reported && (this.screen === 'over' || (this.backdrop === 'run' && OVERLAYS.includes(this.screen)));
+    const overRun = this.overRun();
     this.watch.stop();
     this.screen = screen;
     this.backdrop = overRun ? 'run' : 'attract';
@@ -390,9 +392,15 @@ export class App implements KeyTarget, UiHost {
     this.stage.present(overRun && this.run ? this.run.session : this.ensureAttract().session);
   }
 
+  /** Is the screen being left on top of the ended run, so closing pages leads back to its report? */
+  private overRun(): boolean {
+    if (!this.run?.reported) return false;
+    return this.screen === 'over' || (this.backdrop === 'run' && (OVERLAYS.includes(this.screen) || this.screen === 'replay'));
+  }
+
   private openReplay(id: string): void {
+    this.backdrop = this.overRun() ? 'run' : 'attract';
     this.screen = 'replay';
-    this.backdrop = 'attract';
     this.hideAll();
     this.stage.present(this.ensureAttract().session);
     void this.watch.load(id);

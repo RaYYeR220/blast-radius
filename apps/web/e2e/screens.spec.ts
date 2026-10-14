@@ -110,6 +110,51 @@ test('leaderboard rows open their replay, which plays, seeks and ends in its rep
   expect(errors).toEqual([]);
 });
 
+const oneRowBoard = {
+  board: 'endless',
+  day: null,
+  rows: [{ rank: 1, id: RUN_ID, name: 'ada', score: 110, wave: 1, endedBy: 'leak', kind: 'human', createdAt: storedRun.createdAt }],
+  me: null,
+};
+
+test('a run paused and left with the back button does not freeze the replay viewer', async ({ page }) => {
+  await page.route('**/api/run?**', (r) => r.fulfill({ json: storedRun }));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await expect(page.locator('#hud')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#pause')).toBeVisible();
+  await page.goBack();
+  await expect(page.locator('#title')).toBeVisible();
+  await page.evaluate((id) => (location.hash = `#/replay/${id}`), RUN_ID);
+  const scrub = page.locator('[data-scrub]');
+  await expect(scrub).toBeVisible();
+  const at = async () => Number(await scrub.inputValue());
+  const start = await at();
+  await expect.poll(at, { timeout: 5000 }).toBeGreaterThan(start);
+});
+
+test('closing the board after watching a replay goes back to the report, not a new run', async ({ page }) => {
+  await page.route('**/api/seed', (r) => r.fulfill({ json: { seed: 'e2e-leak', token: 'issued-token' } }));
+  await page.route('**/api/leaderboard**', (r) => r.fulfill({ json: oneRowBoard }));
+  await page.route('**/api/run?**', (r) => r.fulfill({ json: storedRun }));
+  await page.goto('/?debug=1');
+  await page.waitForFunction(() => !!window.__blast);
+  await page.waitForTimeout(500);
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await expect(page.locator('#over .rp')).toBeVisible({ timeout: 45_000 });
+  const finished = await page.evaluate(() => window.__blast!.session.state.tick);
+  await page.locator('#over [data-act="board"]').click();
+  await page.getByRole('link', { name: /Watch ada's run/ }).click();
+  await expect(page).toHaveURL(new RegExp(`#/replay/${RUN_ID}$`));
+  await page.keyboard.press('Escape');
+  await expect(page).toHaveURL(/#\/board/);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#over .rp')).toBeVisible();
+  await expect(page.locator('#rpName')).toBeVisible();
+  expect(await page.evaluate(() => window.__blast!.session.state.tick)).toBe(finished);
+});
+
 test('Play straight from a link still waits for the server seed that is on its way', async ({ page }) => {
   await page.route('**/api/seed', async (r) => {
     await new Promise((done) => setTimeout(done, 700));
