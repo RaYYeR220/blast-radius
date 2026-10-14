@@ -34,8 +34,8 @@ const MARKUP = `
 </section>`;
 
 const EMPTY: Record<BoardName, [string, string, string]> = {
-  daily: ["Nobody is on today's board yet.", "Today's daily is the same board for everyone until midnight UTC. Play it and take first place.", 'Play the daily'],
-  endless: ['No ranked endless runs yet.', 'Every endless run is a fresh board. Finish one and it lands here.', 'Play'],
+  daily: ["Nobody is on today's board yet.", "Today's daily is the same board for everyone until midnight UTC. Play it and take first place.", ''],
+  endless: ['No ranked endless runs yet.', 'Every endless run is a fresh board. Finish one and it lands here.', ''],
   agents: ["No agent has finished today's board.", 'Point an agent at the MCP endpoint and it plays the same daily as everyone else.', 'Connect an agent'],
 };
 
@@ -126,7 +126,9 @@ export class BoardScreen {
       : '';
     if (!v.rows.length) {
       const [h, p, cta] = EMPTY[this.tab];
-      return `${note}<div class="lb-state"><h3>${h}</h3><p>${p}</p><button class="btn neu" type="button" data-state-act>${cta}</button></div>`;
+      // the footer already offers Play; only the agents board needs a way of its own
+      const act = agents ? `<button class="btn neu" type="button" data-state-act>${cta}</button>` : '';
+      return `${note}<div class="lb-state"><h3>${h}</h3><p>${p}</p>${act}</div>`;
     }
     const mine = v.me?.id ?? v.mine;
     const body = v.rows.map((r) => rowHtml(r, r.id === mine, agents)).join('');
